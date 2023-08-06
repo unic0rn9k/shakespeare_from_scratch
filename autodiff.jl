@@ -8,6 +8,7 @@ end
 ## AD from scratch
 # - Caching
 # - Pruning
+# - Generic type for NodeID
 # - Transformers
 
 MathObj = Union{AbstractArray,Number,Nothing}
@@ -22,6 +23,16 @@ begin
     Base.:+(::Nothing, ::Nothing) = nothing
     Base.:exp(x::AbstractArray) = exp.(x)
     Base.:size(::Nothing) = nothing
+    Base.:-(::Nothing, ::Nothing) = nothing
+    Base.:-(l::MathObj, ::Nothing) = l
+    Base.:-(::Nothing, r::MathObj) = -r
+    Base.:/(::Nothing, ::Nothing) = nothing
+    Base.:/(l::MathObj, ::Nothing) = l
+    Base.:/(::Nothing, r::MathObj) = 1 / r
+    Base.:*(l::MathObj, r::MathObj) = l .* r
+    Base.:+(l::MathObj, r::MathObj) = l .+ r
+    Base.:-(l::MathObj, r::MathObj) = l .- r
+    Base.:/(l::MathObj, r::MathObj) = l ./ r
 
     elemop(f::Function, l::MathObj, r::MathObj)::MathObj = f.(l, r)
     elemop(f::Function, l::MathObj, r::Nothing)::MathObj = f(l, r)
@@ -43,7 +54,7 @@ struct NodeID
     source::Graph
 end
 
-struct ADNode
+mutable struct ADNode
     name::String
     op::Operation
     inputs::Vector{NodeID}
@@ -121,11 +132,15 @@ function Base.:push!(g::ADGraph, node)::NodeID
 end
 
 function Base.:rand(g::ADGraph, shape::Tuple{Vararg{Int}})::NodeID
-    push!(g, rand(shape))
+    push!(g, rand(shape...))
 end
 
 function set!(node::NodeID, value)
     node.source.nodes[node.id] = as_node(value)
+end
+
+function rename!(node::NodeID, name::String)
+    node.source.nodes[node.id].name = name
 end
 
 function →(node::NodeID)::ADNode
