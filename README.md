@@ -1,5 +1,5 @@
 # shakespear_from_scratch
-Trying to train build a transformer, and train it on tiny shakespear, completely from scratch
+Trying to train/build a transformer, and train it on tiny shakespear, completely from scratch
 
 The repository contains the "attention is all you need" papper, as a pdf, for reference to the implementation.
 An attempt to implement the transformer architecture from scratch in rust, and also in julia.
