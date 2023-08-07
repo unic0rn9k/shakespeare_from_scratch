@@ -29,10 +29,10 @@ begin
     Base.:/(::Nothing, ::Nothing) = nothing
     Base.:/(l::MathObj, ::Nothing) = l
     Base.:/(::Nothing, r::MathObj) = 1 / r
-    Base.:*(l::MathObj, r::MathObj) = l .* r
-    Base.:+(l::MathObj, r::MathObj) = l .+ r
-    Base.:-(l::MathObj, r::MathObj) = l .- r
-    Base.:/(l::MathObj, r::MathObj) = l ./ r
+    #Base.:*(l::MathObj, r::MathObj) = l .* r
+    #Base.:+(l::MathObj, r::MathObj) = l .+ r
+    #Base.:-(l::MathObj, r::MathObj) = l .- r
+    #Base.:/(l::MathObj, r::MathObj) = l ./ r
 
     elemop(f::Function, l::MathObj, r::MathObj)::MathObj = f.(l, r)
     elemop(f::Function, l::MathObj, r::Nothing)::MathObj = f(l, r)
@@ -83,7 +83,7 @@ function val(node_::NodeID; debug::Bool=false)::MathObj
         rethrow(e)
     end
     if debug
-        @info("[$(node_.id)]\t $(node.name) : $args = $v")
+        @info("[$(node_.id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(v))")
     end
     v
 end
@@ -96,7 +96,7 @@ end
 but(ctx::DiffCtx, d::NodeID)::DiffCtx = DiffCtx(d, ctx.wrt)
 
 function Base.:(==)(a::ADNode, b::ADNode)::Bool
-    a.name == b.name && a.inputs == b.inputs
+    throw("Comparing ADNodes")
 end
 
 function as_node(value)::ADNode
@@ -104,7 +104,7 @@ function as_node(value)::ADNode
         value
     else
         ADNode(
-            "const($value)",
+            "const",
             Operation(
                 function (_)
                     value
@@ -118,15 +118,19 @@ function as_node(value)::ADNode
     end
 end
 
+# TODO: Fix pruning 
 function Base.:push!(g::ADGraph, node)::NodeID
     if typeof(node) == NodeID
         throw("Cannot push NodeID to Graph")
     end
     node = as_node(node)
     nh = nodehash(node)
-    if haskey(g.cache, nh)
-        return NodeID(g.cache[nh], g)
+    if nh[1] == "const"
+        nh = ("const $(length(g.nodes)))", [])
     end
+    #if nh[1] != "const" && haskey(g.cache, nh)
+    #    return NodeID(g.cache[nh], g)
+    #end
     push!(g.nodes, node)
     NodeID(get!(g.cache, nh, length(g.nodes)), g)
 end

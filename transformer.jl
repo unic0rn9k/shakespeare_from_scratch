@@ -59,19 +59,20 @@ dvb = Δ(cost, a.Wv.b)
 dow = Δ(cost, a.Wo.W)
 dob = Δ(cost, a.Wo.b)
 
-val(cost, debug=true)
+val(cost)
 
-val(dqw, debug=true)
+size(val(dqb, debug=true))
+size(val(a.Wq.b))
 
 for _ in 0:2
     set!(a.Wq.W, val(a.Wq.W) - 0.001 * val(dqw))
-    #set!(a.Wq.b, val(a.Wq.b) - 0.01 * val(dqb))
+    set!(a.Wq.b, val(a.Wq.b) - 0.01 * val(dqb))
     set!(a.Wk.W, val(a.Wk.W) - 0.001 * val(dkw))
-    #set!(a.Wk.b, val(a.Wk.b) - 0.01 * val(dkb))
+    set!(a.Wk.b, val(a.Wk.b) - 0.01 * val(dkb))
     set!(a.Wv.W, val(a.Wv.W) - 0.001 * val(dvw))
-    #set!(a.Wv.b, val(a.Wv.b) - 0.01 * val(dvb))
+    set!(a.Wv.b, val(a.Wv.b) - 0.01 * val(dvb))
     set!(a.Wo.W, val(a.Wo.W) - 0.001 * val(dow))
-    #set!(a.Wo.b, val(a.Wo.b) - 0.01 * val(dob))
+    set!(a.Wo.b, val(a.Wo.b) - 0.01 * val(dob))
 end
 
 val(cost)
