@@ -6,7 +6,7 @@ struct Linear
     out::NodeID
 
     function Linear(g::ADGraph, input_size::Int, output_size::Int, input::NodeID)
-        W = rand(g, (output_size, input_size))
+        W = rand(g, (input_size, output_size))
         b = rand(g, (1, output_size))
         out = input * W + b
         return new(W, b, out)
@@ -44,8 +44,8 @@ struct AttentionHead
 end
 
 testgraph = ADGraph()
-i = rand(testgraph, (2, 10))
-mask = push!(testgraph, floor.(rand(2, 10)))
+i = rand(testgraph, (1, 10))
+mask = push!(testgraph, floor.(rand(1, 10)))
 target = elemmul(i, mask)
 a = AttentionHead(testgraph, 10, i, i, i)
 cost = sum(elemmul((a.out - target), (a.out - target)))
@@ -66,13 +66,13 @@ size(val(a.Wq.b))
 
 for _ in 0:2
     set!(a.Wq.W, val(a.Wq.W) - 0.001 * val(dqw))
-    set!(a.Wq.b, val(a.Wq.b) - 0.01 * val(dqb))
+    set!(a.Wq.b, val(a.Wq.b) - 0.001 * val(dqb))
     set!(a.Wk.W, val(a.Wk.W) - 0.001 * val(dkw))
-    set!(a.Wk.b, val(a.Wk.b) - 0.01 * val(dkb))
+    set!(a.Wk.b, val(a.Wk.b) - 0.001 * val(dkb))
     set!(a.Wv.W, val(a.Wv.W) - 0.001 * val(dvw))
-    set!(a.Wv.b, val(a.Wv.b) - 0.01 * val(dvb))
+    set!(a.Wv.b, val(a.Wv.b) - 0.001 * val(dvb))
     set!(a.Wo.W, val(a.Wo.W) - 0.001 * val(dow))
-    set!(a.Wo.b, val(a.Wo.b) - 0.01 * val(dob))
+    set!(a.Wo.b, val(a.Wo.b) - 0.001 * val(dob))
 end
 
 val(cost)
