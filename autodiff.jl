@@ -22,7 +22,7 @@ begin
     Base.:*(::Nothing, ::Nothing) = nothing
     Base.:+(::Nothing, ::Nothing) = nothing
     Base.:exp(x::AbstractArray) = exp.(x)
-    Base.:size(::Nothing) = nothing
+    Base.:size(::Nothing) = 0
     Base.:-(::Nothing, ::Nothing) = nothing
     Base.:-(l::MathObj, ::Nothing) = l
     Base.:-(::Nothing, r::MathObj) = -r
@@ -79,7 +79,7 @@ function val(node_::NodeID; debug::Bool=false)::MathObj
     v = try
         node.op.eval(args)
     catch e
-        @error("[$(node_.id)]\t $(node.name) : $args = $e")
+        @error("[$(node_.id)]\t $(node.name) : $([size(arg) for arg in args]) = $e")
         rethrow(e)
     end
     if debug
@@ -181,11 +181,11 @@ function Base.:transpose(x::NodeID)::NodeID
     ))
 end
 
-function Base.:sum(x::NodeID)::NodeID
+function Base.:sum(x::NodeID; dims=1:ndims(val(x)))::NodeID
     push!(x.source, ADNode(
         "sum",
         Operation(
-            (x) -> sum(x[1]),
+            (x) -> sum(x[1], dims=dims),
             (g, ctx) -> Δ!(x, ctx)
         ),
         [x],
@@ -284,6 +284,62 @@ function Base.:/(a::NodeID, b::NodeID)::NodeID
     ))
 end
 
+function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
+    push!(x.source, ADNode(
+        "padded",
+        Operation(
+            (x) -> [
+                if all([i > j.start && i <= j.stop for (i, j) in zip(pos, p)])
+                    x[(p .- pos)...]
+                else
+                    0
+                end for p in Tuple.(CartesianIndices(size))
+            ],
+            function (g, ctx)
+                Δ!(x, but(ctx, ctx.outerd[]))
+            end
+        ),
+        [x],
+    ))
+end
+
+function Base.:getindex(x::NodeID, i...)::NodeID
+    push!(x.source, ADNode(
+        "getindex $i",
+        Operation(
+            (x) -> getindex(x[1], i...),
+            function (g, ctx)
+                Δ!(x, but(ctx, padded(ctx.outerd, size(val(x)), i)))
+            end
+        ),
+        [x],
+    ))
+end
+
+function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
+    push!(nodes[1].source, ADNode(
+        "cat $dims",
+        Operation(
+            (x) -> cat(filter(x -> x != nothing, x)..., dims=dims),
+            function (g, ctx)
+                outerd::Vector{Any} = [nothing for _ in nodes]
+                i = 1
+                for (n, node) in enumerate(nodes)
+                    s = [n:n for n in size(val(node))]
+                    j = s[dims].start
+                    s[dims] = (i):(j+i-1)
+                    outerd[n] = ctx.outerd[s...]
+                    i += j
+                end
+                s = [1:n for n in size(val(ctx.wrt))]
+                n = length(s) + 1
+                sum(cat([Δ!(node, but(ctx, d)) for (node, d) in zip(nodes, outerd)]..., dims=n), dims=n)[s..., 1]
+            end
+        ),
+        [nodes...],
+    ))
+end
+
 softmax(x) = exp(x) / sum(exp(x))
 
 function Δ(f, wrt; cuda=false)
@@ -358,4 +414,19 @@ begin # Softmax test
 
     @assert(sm == val(sm2))
     @assert(dsm ≈ val(dsm2), "$(dsm) ≈ $(val(dsm2))")
+end
+
+begin # cat and slice test
+    local g = ADGraph()
+    local a = rand(g, (3, 4))
+    local b = rand(g, (3, 4))
+
+    local c = cat(a, elemmul(b, a), dims=2)
+    local d = c[1:3, 2:5]
+
+    local db = Δ(c, b)
+    local da = Δ(d, a)
+
+    @assert(val(db) == val(a), "$(db) == $(val(a))")
+    @assert(val(da) == val(a[:, 2:5]), "$(da) == $(val(a[:, 2:5]))")
 end

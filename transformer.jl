@@ -5,10 +5,14 @@ struct Linear
     b::NodeID
     out::NodeID
 
-    function Linear(g::ADGraph, input_size::Int, output_size::Int, input::NodeID)
+    function Linear(g::ADGraph, input_size::Int, output_size::Int, input::NodeID; bias::Bool=true)
         W = rand(g, (input_size, output_size))
         b = rand(g, (1, output_size))
-        out = input * W + b
+        out = if bias
+            input * W + b
+        else
+            input * W
+        end
         return new(W, b, out)
     end
 end
@@ -23,20 +27,20 @@ struct AttentionHead
     Wo::Linear
     out::NodeID
 
-    function AttentionHead(g::ADGraph, de::Int, q::NodeID, k::NodeID, v::NodeID; dk::Int=de, dv::Int=de)
-        @assert size(val(q))[1] == size(val(k))[1]
-        @assert size(val(q))[1] == size(val(v))[1]
-        @assert size(val(k))[2] == size(val(v))[2]
+    function AttentionHead(g::ADGraph, q::NodeID, k::NodeID, v::NodeID, embd::Int, headd::Int)
+        seqd = size(val(q))[1]
+        @assert seqd == size(val(k))[1] == size(val(v))[1]
+        @assert embd == size(val(q))[2] == size(val(k))[2] == size(val(v))[2]
 
-        Wq = Linear(g, de, dk, q)
+        Wq = Linear(g, de, dk, q, bias=false)
         rename!(Wq.out, "Wq")
-        Wk = Linear(g, de, dk, k)
+        Wk = Linear(g, de, dk, k, bias=false)
         rename!(Wk.out, "Wk")
-        Wv = Linear(g, de, dv, v)
+        Wv = Linear(g, de, dv, v, bias=false)
         rename!(Wv.out, "Wv")
         attn = softmax(Wq.out * transpose(Wk.out) / push!(g, sqrt(dk))) * Wv.out
         rename!(attn, "attn")
-        Wo = Linear(g, dv, de, attn)
+        Wo = Linear(g, dv, de, attn, bias=false)
         rename!(Wo.out, "Wo")
 
         return new(de, dk, dv, Wq, Wk, Wv, Wo, Wo.out)
