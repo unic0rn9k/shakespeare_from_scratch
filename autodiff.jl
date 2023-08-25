@@ -284,6 +284,19 @@ function Base.:/(a::NodeID, b::NodeID)::NodeID
     ))
 end
 
+function Base.:^(x::NodeID, n::Integer)::NodeID
+    push!(x.source, ADNode(
+        "^$n",
+        Operation(
+            (x) -> elemop(^, x[1], n),
+            function (g, ctx)
+                Δ!(x, but(ctx, push!(g, n) * ctx.outerd * x^(n - 1)))
+            end
+        ),
+        [x],
+    ))
+end
+
 function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
     push!(x.source, ADNode(
         "padded $size $pos",
@@ -426,5 +439,5 @@ begin # cat and slice test
     local da = Δ(d, a)
 
     @assert(val(db) == val(a), "$(db) == $(val(a))")
-    println(val(da, debug=true))
+    #println(val(da, debug=true))
 end
