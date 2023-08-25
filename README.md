@@ -8,5 +8,5 @@ The julia implementation relies on a lightweight autodiff implementation as a ba
 
 ## Usage
 
-Screenshot of autodiff unit-test
+Screenshot of basic [autodiff.jl](autodiff.jl) usage
 ![](snap.png)
