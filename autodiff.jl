@@ -297,6 +297,19 @@ function Base.:^(x::NodeID, n::Integer)::NodeID
     ))
 end
 
+function Base.:log(x::NodeID)::NodeID
+    push!(x.source, ADNode(
+        "log",
+        Operation(
+            (x) -> log.(x[1]),
+            function (g, ctx)
+                Δ!(x, but(ctx, ctx.outerd / x))
+            end
+        ),
+        [x],
+    ))
+end
+
 function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
     push!(x.source, ADNode(
         "padded $size $pos",
