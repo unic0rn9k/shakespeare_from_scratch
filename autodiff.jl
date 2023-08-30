@@ -136,7 +136,7 @@ function Base.:push!(g::ADGraph, node)::NodeID
 end
 
 function Base.:rand(g::ADGraph, shape::Tuple{Vararg{Int}})::NodeID
-    push!(g, rand(shape...))
+    push!(g, rand(shape...) .* 2 .- 1)
 end
 
 function set!(node::NodeID, value)
@@ -245,8 +245,7 @@ function Base.:exp(x::NodeID)::NodeID
         Operation(
             (x) -> exp.(x[1]),
             function (g, ctx)
-                bruh = elemmul(exp(x), ctx.outerd)
-                Δ!(x, but(ctx, bruh))
+                Δ!(x, but(ctx, elemmul(exp(x), ctx.outerd)))
             end
         ),
         [x],
@@ -262,6 +261,17 @@ function Base.:-(a::NodeID, b::NodeID)::NodeID
             (g, ctx) -> Δ!(a, ctx) - Δ!(b, ctx)
         ),
         [a, b],
+    ))
+end
+
+function Base.:-(a::NodeID)::NodeID
+    push!(a.source, ADNode(
+        "neg",
+        Operation(
+            (x) -> -x[1],
+            (g, ctx) -> -Δ!(a, but(ctx, ctx.outerd))
+        ),
+        [a],
     ))
 end
 
@@ -363,6 +373,30 @@ function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
         [nodes...],
     ))
 end
+
+# Implement debugging nodes, as single line equations, without values
+function Base.:show(io::IO, node::NodeID)
+    inner = node.source.nodes[node.id]
+    if inner.name in ["const"]
+        v = val(node)
+        if v === nothing
+            print(io, 0)
+        else
+            print(io, v)
+        end
+    elseif inner.name in ["+", "-", "*", "/", ".*", "./"]
+        print(io,
+            "(", inner.inputs[1], " ", inner.name,
+            " ", inner.inputs[2], ")")
+    else
+        print(io, "$(inner.name)(")
+        for i in inner.inputs
+            print(io, " $i")
+        end
+        print(io, ")")
+    end
+end
+
 
 softmax(x) = exp(x) / sum(exp(x))
 

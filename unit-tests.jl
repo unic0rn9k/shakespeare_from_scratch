@@ -4,23 +4,43 @@ include("loss.jl")
 
 begin
     g = ADGraph()
-    w = rand(g, (10, 10))
-    b = rand(g, (1, 10))
+
+    w = rand(g, (10, 5))
+    b = rand(g, (1, 5))
     x = rand(g, (1, 10))
 
-    ŷ = softmax(x * w + b)
-    y = push!(g, one_hot(argmax(val(x)), CartesianIndices(CartesianIndex(1, 10))))
+    rename!(w, "w")
+    rename!(b, "b")
+    rename!(x, "x")
 
-    loss = cross_entropy(y, ŷ)
-    println("Before training: ", val(loss))
+    ŷ = x * w - b
 
-    optimizer = Adam(0.01, [w, b], loss)
+    loss = sum(ŷ^2)
+    optimizer = SGD(0.001, [w, b], loss)
 
-    for _ in 0:10
-        set!(x, rand(1, 10))
-        set!(y, one_hot(argmax(val(x)), 10))
-        optimize!(optimizer)
+    nval = 10000
+    ntrain = 10000
+
+    println("loss = $loss")
+    println("Δloss = $(Δ(loss, b))")
+
+    model_accuracy = () -> begin
+        loss_sum = 0
+        for i in 1:nval
+            set!(x, rand(1, 10))
+            loss_sum += val(loss)[1]
+        end
+        return loss_sum/nval
     end
 
-    println("After training: ", val(loss))
+    println("Before training: $(model_accuracy())\n")
+
+    for i in 0:ntrain
+        optimize!(optimizer)
+        n = rand(1:60000)
+        set!(x, rand(1, 10))
+        println("\u1b[1F$(i*100/ntrain)%")
+    end
+
+    println("After training:  $(model_accuracy())")
 end

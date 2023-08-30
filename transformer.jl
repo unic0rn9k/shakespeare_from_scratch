@@ -42,9 +42,7 @@ struct AttentionHead
             scores = scores + tril
         end
 
-
         attn = softmax(scores) * Wv.out
-        Wo = Linear(g, dv, de, attn, bias=false)
 
         rename!(Wk.out, "Wk")
         rename!(Wq.out, "Wq")
@@ -52,6 +50,25 @@ struct AttentionHead
         rename!(attn, "attn")
         rename!(Wo.out, "Wo")
 
-        return new(de, dk, dv, Wq, Wk, Wv, Wo, Wo.out)
+        return new(de, dk, dv, Wq, Wk, Wv, Wo, attn)
     end
+end
+
+## Train single attention head on tiny-shakespeare, with cross_entropy loss and Adam optimizer
+# 1. Load data
+
+data = open("tiny-shakespeare.txt") do f
+    read(f, String)
+end
+
+alphabet = unique(data)
+alphabet_size = length(alphabet)
+char_to_idx = Dict(ch => i for (i, ch) in enumerate(alphabet))
+idx_to_char = Dict(i => ch for (i, ch) in enumerate(alphabet))
+
+data = [char_to_idx[ch] for ch in data]
+
+function get_sequence(seq_len::Int)::Tuple{Matrix{Float64},Matrix{Float64}}
+    x = zeros(seq_len, alphabet_size)
+    y = zeros(seq_len, alphabet_size)
 end

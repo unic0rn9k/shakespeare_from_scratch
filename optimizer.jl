@@ -2,6 +2,22 @@
 
 include("autodiff.jl")
 
+struct SGD
+    lr::Real # Learning rate of the optimizer
+    params::Array{NodeID} # Parameters to optimize
+    loss::NodeID # Loss function to minimize
+
+    function SGD(lr::Real, params::Array{NodeID}, loss::NodeID)
+        return new(lr, params, loss)
+    end
+end
+
+function optimize!(optimizer::SGD)
+    for p in optimizer.params
+        set!(p, val(p) .- optimizer.lr .* val(Δ(optimizer.loss, p)))
+    end
+end
+
 mutable struct Adam
     lr::Real # Learning rate of the optimizer
     params::Array{NodeID} # Parameters to optimize
