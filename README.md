@@ -16,7 +16,7 @@ The project is pretty small, coming in at just under 600, at the moment.
 --------------------------------------------------------------------------------
 ```
 
-## Usage
+## Example mnist classifier
 
 Screenshot of basic [autodiff.jl](autodiff.jl) usage
 ```julia
