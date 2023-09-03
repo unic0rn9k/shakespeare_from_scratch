@@ -1,4 +1,4 @@
-# Shakespear From Scratch (WIP)
+# Shakespeare From Scratch (WIP)
 A transformer implementation, in Julia only depending on the standart library.
 Also has optional support for GPU, which depends on the CUDA package.
 
