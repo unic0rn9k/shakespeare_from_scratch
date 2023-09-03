@@ -18,7 +18,7 @@ The project is pretty small, coming in at just under 600, at the moment.
 
 ## Example mnist classifier
 
-Screenshot of basic [autodiff.jl](autodiff.jl) usage
+An mnist classifier, using [autodiff.jl](autodiff.jl), to work as a proof-of-concept.
 ```julia
 using MLDatasets
 
