@@ -7,9 +7,9 @@ import pickle
 
 w = torch.rand(5, 10, requires_grad=True)
 
-optimizer = torch.optim.SGD([w], lr=0.01, momentum=1)
+optimizer = torch.optim.SGD([w], lr=0.1)
 
-for i in range(4):
+for i in range(100):
     x = torch.rand(1,5)
     torch.save(x, f"compare/x{i}.pt")
     torch.save(w, f"compare/w{i}.pt")

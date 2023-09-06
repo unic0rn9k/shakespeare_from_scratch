@@ -74,3 +74,19 @@ Outputs:
 # 100%
 # After training:  74.85000000000001%
 ```
+## One to one comparison with PyTorch
+Optimizing a parameter in a linear projection, and testing against values, and initial states, generated with PyTorch (see [test.py](test.py)).
+![](drift.png)
+The graph shows the summed squared difference between the expected and actual parameter of the linear projection.
+The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [compare.jl](compare.jl)
+
+## Transformer Validation Spec
+
+Test with basic decoder model, that has no trig mask or positional encoding. Basically just a model that is as simple as possible.
+
+```txt
+123#56 = 4
+..34#6 = 5
+#...56 = 1
+1...#. = 5
+```
