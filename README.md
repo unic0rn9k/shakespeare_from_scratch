@@ -76,7 +76,9 @@ Outputs:
 ```
 ## One to one comparison with PyTorch
 Optimizing a parameter in a linear projection, and testing against values, and initial states, generated with PyTorch (see [test.py](test.py)).
+
 ![](drift.png)
+
 The graph shows the summed squared difference between the expected and actual parameter of the linear projection.
 The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [compare.jl](compare.jl)
 
