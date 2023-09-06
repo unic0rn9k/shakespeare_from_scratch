@@ -2,6 +2,10 @@
 A transformer implementation, in Julia only depending on the standart library.
 Also has optional support for GPU, which depends on the CUDA package.
 
+## TODO
+- [ ] Organize project better (file structure and documentation)
+
+# About and usage
 The project is pretty small, coming in at just under 600, at the moment.
 
 ```txt
@@ -74,6 +78,7 @@ Outputs:
 # 100%
 # After training:  74.85000000000001%
 ```
+# Development
 ## One to one comparison with PyTorch
 Optimizing a parameter in a linear projection, and testing against values, and initial states, generated with PyTorch (see [test.py](test.py)).
 
