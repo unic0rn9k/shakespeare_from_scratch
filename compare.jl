@@ -13,24 +13,30 @@ begin
     x = Pickle.Torch.THload("compare/x0.pt")
     x = push!(g, x)
 
-    loss = sum((x * w) ^ 2)
-    optimizer = SGD(0.1, [w], loss)
+    y = Pickle.Torch.THload("compare/y0.pt")
+    y = push!(g, y)
+
+    loss = mse_loss(y, x*w)
+    optimizer = Adam(0.1, [w], loss)
     drift = []
     
-    for i in 0:100
+    ntest = 10000
+    for i in 0:ntest
         try
-            a = val(w) ≈ Pickle.Torch.THload("compare/w$i.pt")
-            b = val(x) ≈ Pickle.Torch.THload("compare/x$i.pt")
-            if !a || !b
-                @warn("Mismatched values at iteration $i")
+            
+            if val(w) ≉ Pickle.Torch.THload("compare/w$i.pt")
+                @warn("Mismatched values at iteration $i\ndrift = $(drift[i])")
             end
             push!(drift, sum((val(w) - Pickle.Torch.THload("compare/w$i.pt")).^2))
             optimize!(optimizer)
             set!(x, Pickle.Torch.THload("compare/x$(i + 1).pt"))
+            set!(y, Pickle.Torch.THload("compare/y$(i + 1).pt"))
         catch LoadError
+            println()
             @info("Collected $i samples")
             break
         end
+        print("Validating tests... $(i*100/ntest)%\r")
     end
 
     savefig(plot(drift), "drift.png")

@@ -1,4 +1,4 @@
-MSE = (y, ŷ) -> sum((y - ŷ)^2) / push!(g, length(val(ŷ)))
+mse_loss = (y, ŷ) -> sum((y - ŷ)^2) / push!(g, length(val(ŷ)))
 
 cross_entropy = (y, ŷ) -> -sum(elemmul(y, log(ŷ + push!(g, 1e-8))))
 
