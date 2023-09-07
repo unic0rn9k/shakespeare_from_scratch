@@ -1,8 +1,5 @@
 using MLDatasets
-
-include("autodiff.jl")
-include("optimizer.jl")
-include("loss.jl")
+#using shakespeare
 
 # Before training: 10.26%
 # 100%

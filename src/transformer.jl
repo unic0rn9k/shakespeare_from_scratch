@@ -1,5 +1,3 @@
-include("autodiff.jl")
-
 struct Linear
     W::NodeID
     b::NodeID

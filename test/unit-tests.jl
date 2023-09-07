@@ -1,6 +1,4 @@
-include("autodiff.jl")
-include("optimizer.jl")
-include("loss.jl")
+#using shakespeare
 
 begin
     g = ADGraph()

@@ -1,9 +1,4 @@
 import torch
-import pickle
-
-# Pickle the dictionary
-#with open("test.pickle", "wb") as f:
-#    pickle.dump(torch.rand(1,5), f)
 
 w = torch.rand(5, 10, requires_grad=True)
 
@@ -27,5 +22,5 @@ for i in range(ntest):
     loss.backward()
     optimizer.step()
 
-    print(f"Generating tests... {i*100/ntest}%", end="\r")
-print("Generating tests... done  ")
+    print(f"Generating python test artifacts... {i*100/ntest}%", end="\r")
+print("Generating python test artifacts...   done")

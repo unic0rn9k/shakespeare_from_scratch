@@ -1,7 +1,5 @@
 # Implementation of the Adam optimizer (written by copilot, for now)
 
-include("autodiff.jl")
-
 struct SGD
     lr::Real # Learning rate of the optimizer
     params::Array{NodeID} # Parameters to optimize
