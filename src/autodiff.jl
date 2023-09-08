@@ -95,7 +95,7 @@ end
 
 but(ctx::DiffCtx, d::NodeID)::DiffCtx = DiffCtx(d, ctx.wrt)
 
-function Base.:(==)(a::ADNode, b::ADNode)::Bool
+function Base.:(==)(::ADNode, ::ADNode)::Bool
     throw("Comparing ADNodes")
 end
 
@@ -374,6 +374,24 @@ function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
     ))
 end
 
+# Instead of computing exp(x - max), we compute exp2(x * log_2(e) -
+# max * log_2(e)) This allows the compiler to use the ffma
+# instruction instead of fadd and fmul separately.
+softmax(x::MathObj) = exp2.(x .* log2(ℯ) .- maximum(x) .* log2(ℯ))
+
+function softmax(x::NodeID)::NodeID
+    push!(x.source, ADNode(
+        "softmax",
+        Operation(
+            (x) -> softmax(x[1]),
+            function (g, ctx)
+                Δ!(x, but(ctx, elemmul(softmax(x), (push!(g, 1) - softmax(x)))))
+            end
+        ),
+        [x],
+    ))
+end
+
 # Implement debugging nodes, as single line equations, without values
 function Base.:show(io::IO, node::NodeID)
     inner = node.source.nodes[node.id]
@@ -396,9 +414,6 @@ function Base.:show(io::IO, node::NodeID)
         print(io, ")")
     end
 end
-
-
-softmax(x) = exp(x) / sum(exp(x))
 
 function Δ(f, wrt; cuda=false)
     v = val(f)

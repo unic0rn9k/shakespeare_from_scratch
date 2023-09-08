@@ -1,5 +1,5 @@
 using MLDatasets
-#using shakespeare
+using Shakespeare
 
 # Before training: 10.26%
 # 100%
