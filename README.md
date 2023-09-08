@@ -84,7 +84,8 @@ Optimizing a parameter in a linear projection (matmul), and testing against valu
 
 ![](test/drift.png)
 
-The graph shows the summed squared difference between the expected and actual parameter of the linear projection, on the Y-axis. And the iteration of optimization on the x-axis.
+The graph shows, the mean square error between the expected parameter value from PyTorch, and actual parameter of the linear projection, on the Y-axis. And the iteration of optimization on the x-axis.
+
 The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [compare.jl](test/compare.jl)
 
 ### Tested functions

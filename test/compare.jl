@@ -20,7 +20,8 @@ begin
     ntest = 10000
     for i in 0:ntest
         try
-            push!(drift, sum((val(w) - Pickle.Torch.THload("artifacts/w$i.pt")).^2))
+            w2 = Pickle.Torch.THload("artifacts/w$i.pt")
+            push!(drift, sum((val(w) - w2).^2)/length(w2))
             @test drift[i+1] < 1e-4
             optimize!(optimizer)
             set!(x, Pickle.Torch.THload("artifacts/x$(i + 1).pt"))
