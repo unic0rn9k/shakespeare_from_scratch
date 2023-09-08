@@ -88,11 +88,13 @@ The graph shows the summed squared difference between the expected and actual pa
 The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [compare.jl](test/compare.jl)
 
 ### Tested functions
-- [X] Matrix Multiplication
-- [X] Stochastic Gradient Decent (SGD)
-- [X] Adam Optimizer
-- [ ] Softmax
-- [ ] Cross-entropy
+| sub 1e-6 MSE | Function                            |
+|--------------|-------------------------------------|
+| [X]          | Matrix Multiplication               |
+| [X]          | Stochastic Gradient Decent (SGD)    |
+| [X]          | Adam Optimizer                      |
+| [ ]          | Softmax                             |
+| [ ]          | Cross-entropy                       |
 
 ## Transformer Validation Spec
 
