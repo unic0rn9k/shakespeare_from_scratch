@@ -80,7 +80,7 @@ Outputs:
 ```
 # Development
 ## One to one comparison with PyTorch
-Optimizing a parameter in a linear projection (matmul), and testing against values, and initial states, generated with PyTorch (see [test.py](test/test.py)).
+Optimizing a parameter in a linear projection (matmul), fed into a softmax function, and testing against values, and initial states, generated with PyTorch (see [test.py](test/test.py)).
 
 ![](test/drift.png)
 
@@ -89,7 +89,7 @@ The graph shows, the mean square error between the expected parameter value from
 The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [compare.jl](test/compare.jl)
 
 ### Tested functions
-| sub 1e-6 MSE | Function                            |
+| sub 1e-4 MSE | Function                            |
 |--------------|-------------------------------------|
 |    ✅        | Matrix Multiplication               |
 |    ✅        | Stochastic Gradient Decent (SGD)    |
