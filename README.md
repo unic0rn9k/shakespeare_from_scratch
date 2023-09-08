@@ -90,11 +90,11 @@ The code used to generate the graph, and do the comparison between the torch and
 ### Tested functions
 | sub 1e-6 MSE | Function                            |
 |--------------|-------------------------------------|
-| [X]          | Matrix Multiplication               |
-| [X]          | Stochastic Gradient Decent (SGD)    |
-| [X]          | Adam Optimizer                      |
-| [ ]          | Softmax                             |
-| [ ]          | Cross-entropy                       |
+|    ✅        | Matrix Multiplication               |
+|    ✅        | Stochastic Gradient Decent (SGD)    |
+|    ✅        | Adam Optimizer                      |
+|    ❌        | Softmax                             |
+|    ❌        | Cross-entropy                       |
 
 ## Transformer Validation Spec
 
