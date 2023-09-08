@@ -87,6 +87,13 @@ Optimizing a parameter in a linear projection (matmul), and testing against valu
 The graph shows the summed squared difference between the expected and actual parameter of the linear projection, on the Y-axis. And the iteration of optimization on the x-axis.
 The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [compare.jl](test/compare.jl)
 
+### Tested functions
+- [X] Matrix Multiplication
+- [X] Stochastic Gradient Decent (SGD)
+- [X] Adam Optimizer
+- [ ] Softmax
+- [ ] Cross-entropy
+
 ## Transformer Validation Spec
 
 Test with basic decoder model, that has no trig mask or positional encoding. Basically just a model that is as simple as possible.
