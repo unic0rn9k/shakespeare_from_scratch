@@ -1,6 +1,7 @@
 # Implementation of the Adam optimizer (written by copilot, for now)
+abstract type Optimizer end
 
-struct SGD
+struct SGD <: Optimizer
     lr::Real # Learning rate of the optimizer
     params::Array{NodeID} # Parameters to optimize
     loss::NodeID # Loss function to minimize
@@ -16,7 +17,7 @@ function optimize!(optimizer::SGD)
     end
 end
 
-mutable struct Adam
+mutable struct Adam <: Optimizer
     lr::Real # Learning rate of the optimizer
     params::Array{NodeID} # Parameters to optimize
     loss::NodeID # Loss function to minimize
