@@ -30,11 +30,10 @@ function step!(m::ModelComparitor)
     m.iter += 1
     for p in keys(m.parameters)
         w2 = Pickle.Torch.THload("artifacts/$(m.name)_$p$(m.iter).pt")
-        push!(m.drift, sum((val(m.parameters[p]) - w2).^2)/length(w2))
         if !(m.parameters[p] in m.optimizer.params)
-            println(p)
-            @error("")
             set!(m.parameters[p], w2)
+        else
+            push!(m.drift, sum((val(m.parameters[p]) - w2).^2)/length(w2))
         end
     end
 end
