@@ -428,6 +428,7 @@ function Δ(f, wrt; cuda=false)
 end
 
 ## Unit tests
+@testset "autodiff.jl" begin
 
 begin # Basic scalar tests
     local g = ADGraph()
@@ -435,18 +436,18 @@ begin # Basic scalar tests
 
     local b = push!(g, 4)
     local c = a * b
-    @assert(val(a) == 3, val(a))
-    @assert(val(c) == 3 * 4, val(c, debug=true))
+    @test(val(a) == 3)
+    @test(val(c) == 3 * 4)
     local db = Δ!(c, wrt(b))
-    @assert(val(db) == 3, val(db))
+    @test(val(db) == 3)
 
     local d = push!(g, 5)
     local e = c + d
     local f = e * push!(g, 2)
 
-    @assert(val(Δ(f, d)) == 2, "$(val(Δ(f, d)))")
-    @assert(val(Δ(f, c)) == 2)
-    @assert(val(Δ(f, b)) == 6)
+    @test(val(Δ(f, d)) == 2)
+    @test(val(Δ(f, c)) == 2)
+    @test(val(Δ(f, b)) == 6)
 end
 
 begin # Basic matrix tests + CUDA
@@ -469,9 +470,9 @@ begin # Basic matrix tests + CUDA
     #local bruh = c*b
     #@assert(gn == length(g.nodes), keys(g.cache))
 
-    @assert(size(da) == size(val(a)), "$(size(da)) == $(size(val(a)))")
-    @assert(size(db) == size(val(b)), "$(size(db)) == $(size(val(b)))")
-    @assert(size(dd) == size(val(d)), "$(size(dd)) == $(size(val(d)))")
+    @test(size(da) == size(val(a)))
+    @test(size(db) == size(val(b)))
+    @test(size(dd) == size(val(d)))
 end
 
 begin # Softmax test
@@ -485,8 +486,8 @@ begin # Softmax test
     local sm2 = softmax(x)
     local dsm2 = Δ(sm2, x)
 
-    @assert(sm == val(sm2))
-    @assert(dsm ≈ val(dsm2), "$(dsm) ≈ $(val(dsm2))")
+    @test(sm == val(sm2))
+    @test(dsm ≈ val(dsm2))
 end
 
 begin # cat and slice test
@@ -500,6 +501,7 @@ begin # cat and slice test
     local db = Δ(c, b)
     local da = Δ(d, a)
 
-    @assert(val(db) == val(a), "$(db) == $(val(a))")
+    @test(val(db) == val(a))
     #println(val(da, debug=true))
 end
+end #testset
