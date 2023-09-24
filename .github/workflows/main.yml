@@ -3,7 +3,7 @@ name: Julia Package CI
 on:
   push:
     branches:
-      - master  # Change this to your main branch name
+      - master
 
 jobs:
   test:
@@ -16,12 +16,13 @@ jobs:
     - name: Set up Julia
       uses: julia-actions/setup-julia@v1
       with:
-        version: 1.9.3  # Change to the desired Julia version
+        version: 1.9.3
 
     - name: Install package dependencies
-      run: |
-        julia --project -e 'import Pkg; Pkg.instantiate()'
+      run: julia --project -e 'import Pkg; Pkg.instantiate()'
+
+    - name: Install PyTorch
+      run: python3 -m pip install torch --break-system-packages
 
     - name: Run tests
-      run: |
-        julia --project -e 'import Pkg; Pkg.test()'
+      run: julia --project -e 'import Pkg; Pkg.test()'
