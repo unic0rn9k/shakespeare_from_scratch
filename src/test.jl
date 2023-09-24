@@ -28,16 +28,16 @@ end
 function step!(m::ModelComparitor)
     optimize!(m.optimizer)
     m.iter += 1
+    drift = 0
     for p in keys(m.parameters)
         w2 = Pickle.Torch.THload("artifacts/$(m.name)_$p$(m.iter).pt")
         if !(m.parameters[p] in m.optimizer.params)
             set!(m.parameters[p], w2)
         else
-            drift = m.drift, sum((val(m.parameters[p]) - w2).^2)/length(w2)
-            push!(drift)
-            @test m.drift < 0.1
+            drift += sum((val(m.parameters[p]) - w2).^2) / length(w2)
         end
     end
+    push!(m.drift, drift / length(keys(m.parameters)))
 end
 
 function saveplot(m::ModelComparitor)
@@ -68,19 +68,22 @@ models::Dict{String, Function} = Dict(
 function compare()
     ntest = 10000
     for (name, f) in models
-        model = f(ModelComparitor(name))
-        for i in 1:ntest
-            try
-                step!(model)
-            catch err
-                @warn(err)
-                println("Validating '$name'...   done")
-                @info("Collected $i samples")
-                break
+        @testset "$name" begin
+            model = f(ModelComparitor(name))
+            for i in 1:ntest
+                try
+                    step!(model)
+                catch err
+                    @warn(err)
+                    println("Validating '$name'...   done")
+                    @info("Collected $i samples")
+                    break
+                end
+                print("Validating '$name'... $(i*100/ntest)%\r")
             end
-            print("Validating '$name'... $(i*100/ntest)%\r")
+            @test model.drift[end] < 0.1
+            saveplot(model)
+            delete!(models, name)
         end
-        saveplot(model)
-        delete!(models, name)
     end
 end

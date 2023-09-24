@@ -504,7 +504,6 @@ end
     @test(val(db) == val(a))
     #println(val(da, debug=true))
     e = cat(a, push!(g, nothing), dims=1)
-    @info val(e)
     @test val(e) == val(a)
 end
 end #testset
