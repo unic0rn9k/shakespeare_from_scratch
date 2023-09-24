@@ -19,7 +19,7 @@ for i in range(ntest):
     optimizer.zero_grad()
     yhat = x.mm(w)+b
     
-    loss = torch.nn.functional.cross_entropy(yhat, y)
+    loss = torch.nn.functional.mse_loss(yhat, y)
 
     loss.backward()
     optimizer.step()
