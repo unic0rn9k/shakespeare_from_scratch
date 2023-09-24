@@ -22,7 +22,7 @@ jobs:
       run: julia --project -e 'import Pkg; Pkg.instantiate()'
 
     - name: Install PyTorch
-      run: python3 -m pip install torch --break-system-packages
+      run: python3 -m pip install torch
 
     - name: Run tests
       run: julia --project -e 'import Pkg; Pkg.test()'
