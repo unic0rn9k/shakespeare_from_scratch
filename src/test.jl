@@ -33,7 +33,9 @@ function step!(m::ModelComparitor)
         if !(m.parameters[p] in m.optimizer.params)
             set!(m.parameters[p], w2)
         else
-            push!(m.drift, sum((val(m.parameters[p]) - w2).^2)/length(w2))
+            drift = m.drift, sum((val(m.parameters[p]) - w2).^2)/length(w2)
+            push!(drift)
+            @test m.drift < 0.1
         end
     end
 end
@@ -56,7 +58,7 @@ models::Dict{String, Function} = Dict(
     "adem" => function(m)
         (w, x, b, y) = push!(m, ["w", "x", "b", "y"])
         y_hat = x*w+b
-        loss = cross_entropy(y, y_hat)
+        loss = mse_loss(y, y_hat)
         optimizer = Adam(0.1, [w, b], loss)
         initialize_optimizer!(m, optimizer)
         m
