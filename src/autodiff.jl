@@ -354,7 +354,7 @@ function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
     push!(nodes[1].source, ADNode(
         "cat dims=$dims",
         Operation(
-            (x) -> cat(filter(x -> x != nothing, x)..., dims=dims),
+            (x) -> cat(filter(x -> x !== nothing, x)..., dims=dims),
             function (g, ctx)
                 outerd::Vector{Any} = [nothing for _ in nodes]
                 i = 1
@@ -430,7 +430,7 @@ end
 ## Unit tests
 @testset "autodiff.jl" begin
 
-begin # Basic scalar tests
+@testset "Basic scalar AD" begin
     local g = ADGraph()
     local a = push!(g, 3)
 
@@ -450,7 +450,7 @@ begin # Basic scalar tests
     @test(val(Δ(f, b)) == 6)
 end
 
-begin # Basic matrix tests + CUDA
+@testset "Basic matrix tests + (mby) CUDA" begin
     local g = ADGraph()
     #local a = transpose(push!(g, CuArray([1 2; 3 4; 5 6])))
     #local b = push!(g, transpose(CuArray([1 2 3 0; 4 5 6 0; 7 8 9 0])))
@@ -475,7 +475,7 @@ begin # Basic matrix tests + CUDA
     @test(size(dd) == size(val(d)))
 end
 
-begin # Softmax test
+@testset "Softmax test" begin
     local x = rand(1000)
     local sm = softmax(x)
     local dsm = sm .* (1 .- sm)
@@ -490,7 +490,7 @@ begin # Softmax test
     @test(dsm ≈ val(dsm2))
 end
 
-begin # cat and slice test
+@testset "cat and slice test" begin
     local g = ADGraph()
     local a = rand(g, (3, 4))
     local b = rand(g, (3, 4))
@@ -503,5 +503,8 @@ begin # cat and slice test
 
     @test(val(db) == val(a))
     #println(val(da, debug=true))
+    e = cat(a, push!(g, nothing), dims=1)
+    @info val(e)
+    @test val(e) == val(a)
 end
 end #testset
