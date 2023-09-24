@@ -1,27 +1,27 @@
-name: Run tests
-on: 
+name: Julia Package CI
+
+on:
   push:
     branches:
-      - master
-      - main
-  pull_request:
+      - main  # Change this to your main branch name
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        julia-version: ['1.0', '1', 'nightly']
-        julia-arch: [x64, x86]
-        os: [ubuntu-latest, windows-latest, macOS-latest]
-        exclude:
-          - os: macOS-latest
-            julia-arch: x86
+    runs-on: ubuntu-latest
 
-    
     steps:
-    - uses: actions/checkout@v2
-    - uses: julia-actions/setup-julia@v1
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Julia
+      uses: julia-actions/setup-julia@v1
       with:
-        version: 1.0.4
-    - run: julia --project=. -e 'using Pkg; Pkg.test("shakespeare")'
+        version: 1.6  # Change to the desired Julia version
+
+    - name: Install package dependencies
+      run: |
+        julia --project -e 'import Pkg; Pkg.instantiate()'
+
+    - name: Run tests
+      run: |
+        julia --project -e 'import Pkg; Pkg.test()'
