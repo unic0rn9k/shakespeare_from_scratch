@@ -3,7 +3,7 @@ name: Julia Package CI
 on:
   push:
     branches:
-      - main  # Change this to your main branch name
+      - master  # Change this to your main branch name
 
 jobs:
   test:
