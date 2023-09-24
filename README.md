@@ -2,9 +2,6 @@
 A transformer implementation, in Julia only depending on the standart library.
 Also has optional support for GPU, which depends on the CUDA package.
 
-## TODO
-- [ ] Organize project better (file structure and documentation)
-
 # About and usage
 The project is pretty small, coming in at just under 600, at the moment.
 
@@ -80,13 +77,13 @@ Outputs:
 ```
 # Development
 ## One to one comparison with PyTorch
-Optimizing a parameter in a linear projection (matmul), fed into a softmax function, and testing against values, and initial states, generated with PyTorch (see [test.py](test/test.py)).
+Optimizing a parameter in a linear projection (matmul), fed into a softmax function, and testing against values, and initial states, generated with PyTorch (see [linear_softmax.py](test/py/linear_softmax.py)).
 
 ![](test/drift.png)
 
 The graph shows, the mean square error between the expected parameter value from PyTorch, and actual parameter of the linear projection, on the Y-axis. And the iteration of optimization on the x-axis.
 
-The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [compare.jl](test/compare.jl)
+The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [test.jl](https://github.com/unic0rn9k/shakespeare_from_scratch/blob/master/src/test.jl#L50-L57) (test/runtests.jl didn't work with my LSP configuration for some reason, so this is an easy workaround)
 
 ### Tested functions
 | sub 1e-4 MSE | Function                            |
