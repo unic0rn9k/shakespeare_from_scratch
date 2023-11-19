@@ -48,10 +48,10 @@ g = ADGraph()
 
 models::Dict{String, Function} = Dict(
     "linear_softmax" => function(m)
-        (w, x, y) = push!(m, ["w", "x", "y"])
-        y_hat = softmax(x*w)
+        (w, x, y, b) = push!(m, ["w", "x", "y", "b"])
+        y_hat = softmax(x*w+b)
         loss = mse_loss(y, y_hat)
-        optimizer = SGD(0.1, [w], loss)
+        optimizer = Adam(0.1, [w], loss)
         initialize_optimizer!(m, optimizer)
         m
     end,
@@ -81,9 +81,9 @@ function compare()
                 end
                 print("Validating '$name'... $(i*100/ntest)%\r")
             end
-            @test model.drift[end] < 0.1
             saveplot(model)
             delete!(models, name)
+            @test model.drift[end] < 0.1
         end
     end
 end

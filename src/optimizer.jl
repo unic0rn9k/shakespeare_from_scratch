@@ -45,7 +45,14 @@ function optimize!(optimizer::Adam)
         optimizer.v[i] = optimizer.β2 * optimizer.v[i] + (1 - optimizer.β2) * g .^ 2
         m̂ = optimizer.m[i] / (1 - optimizer.β1^optimizer.t)
         v̂ = optimizer.v[i] / (1 - optimizer.β2^optimizer.t)
-        set!(p, val(p) .- m̂ .* optimizer.lr ./ (sqrt.(v̂) .+ optimizer.ϵ))
+        oops = val(p) .- m̂ .* optimizer.lr ./ (sqrt.(v̂) .+ optimizer.ϵ)
+        if isnan.(oops) |> any
+            @error "NaN encountered in Adam optimizer"
+        end
+        if isinf.(oops) |> any
+            @error "Inf encountered in Adam optimizer"
+        end
+        set!(p, oops)
     end
 end
 
