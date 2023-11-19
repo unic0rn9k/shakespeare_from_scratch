@@ -2,11 +2,7 @@ using MLDatasets: MNIST
 include("../src/Shakespeare.jl")
 using .Shakespeare
 
-# Instead of going directly to numerically validating the gradients,
-# validate each of the operations in the forward pass, and perhaps the entire graph.
-
-## Forward validation
-# - [x] 
+# The bug might have occured in node caching, or when pushing nil nodes.
 
 function classifier()
     mnist = MNIST()
