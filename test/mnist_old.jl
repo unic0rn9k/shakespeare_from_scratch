@@ -29,7 +29,7 @@ function classifier()
     rename!(ŷ, "const ŷ")
 
 
-    loss = sum((ŷ - y)^2) #cross_entropy(y, ŷ)
+    loss = sum((ŷ - y)^2)
 
     nval   = 1000
     ntrain = 40000
@@ -51,24 +51,21 @@ function classifier()
 
     println("Before training: $(100*model_accuracy())%\n")
 
-    optim = Adam(0.01, [w, b], loss)
-
     for i in 0:ntrain
         n = rand(1:55000)
         input!(n)
         target!(n)
-        optimize!(optim)
-        #dw = val(Δ(loss, w))
-        #db = val(Δ(loss, b))
-        #ol = val(loss)
-        #set!(w, val(w) .- (0.01 .* dw))
-        #set!(b, val(b) .- (0.01 .* db))
+        dw = val(Δ(loss, w))
+        db = val(Δ(loss, b))
+        ol = val(loss)
+        set!(w, val(w) .- (0.01 .* dw))
+        set!(b, val(b) .- (0.01 .* db))
         if i%100 == 0
             println("\u1b[1F $i / $ntrain - $(val(loss))  ")
         end
-        #if val(loss) > ol
-        #    @warn "$i : rising loss"
-        #end
+        if val(loss) > ol
+            #@warn "$i : rising loss"
+        end
     end
 
     println("After training:  $(100*model_accuracy())%")

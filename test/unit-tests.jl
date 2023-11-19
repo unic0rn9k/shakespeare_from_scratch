@@ -1,44 +1,50 @@
-#using shakespeare
+using MLDatasets: MNIST
+include("../src/Shakespeare.jl")
+using .Shakespeare
 
-begin
+# Instead of going directly to numerically validating the gradients,
+# validate each of the operations in the forward pass, and perhaps the entire graph.
+
+## Forward validation
+# - [x] 
+
+function classifier()
+
     g = ADGraph()
+    w = push!(g, 2)
+    b = push!(g, 1)
 
-    w = rand(g, (10, 5))
-    b = rand(g, (1, 5))
-    x = rand(g, (1, 10))
+    x = push!(g, randn())
+    ŷ = x * w + b
 
-    rename!(w, "w")
-    rename!(b, "b")
-    rename!(x, "x")
+    y = push!(g, val(x) * 4 - 2)
+    loss = sum((ŷ - y)^2)
 
-    ŷ = x * w - b
+    rename!(w, "const w")
+    rename!(b, "const b")
+    rename!(x, "const x")
+    rename!(y, "const Y")
+    rename!(ŷ, "const ŷ")
 
-    loss = sum(ŷ^2)
-    optimizer = SGD(0.001, [w, b], loss)
+    @show Δ(loss, w)
+    @show Δ(loss, b)
+    @show val(w) - val(Δ(loss, w))
+    @show val(b) - val(Δ(loss, b))
+    @show val(x)
+    @show val(loss)
 
-    nval = 10000
-    ntrain = 10000
-
-    println("loss = $loss")
-    println("Δloss = $(Δ(loss, b))")
-
-    model_accuracy = () -> begin
-        loss_sum = 0
-        for i in 1:nval
-            set!(x, rand(1, 10))
-            loss_sum += val(loss)[1]
-        end
-        return loss_sum/nval
+    iter = 0
+    while val(loss) > 0.1
+        set!(x, randn())
+        set!(y, val(x) * 4 - 2)
+        set!(w, val(w) - val(Δ(loss, w))*0.1)
+        set!(b, val(b) - val(Δ(loss, b))*0.1)
+        iter+=1
     end
-
-    println("Before training: $(model_accuracy())\n")
-
-    for i in 0:ntrain
-        optimize!(optimizer)
-        n = rand(1:60000)
-        set!(x, rand(1, 10))
-        println("\u1b[1F$(i*100/ntrain)%")
-    end
-
-    println("After training:  $(model_accuracy())")
+    @show iter
 end
+
+mnist = MNIST()
+classifier()
+
+#Δ(loss, w) = (0 + ((0 + (T( const X) * ((const Y_hat .* (const 1 - const Y_hat)) .* neg( ((const 2 * const 1) * ^1( (const Y🏷️ - const Y_hat))))))) + 0))
