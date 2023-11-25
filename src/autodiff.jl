@@ -69,8 +69,8 @@ nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inpu
 mutable struct ADGraph <: Graph
     version::UInt
     nodes::Vector{ADNode}
-    #cache::Dict{Tuple{String,Vector{UInt}},UInt}
-    ADGraph() = new(0, [])#, Dict())
+    cache::Dict{Tuple{String,Vector{UInt}},UInt}
+    ADGraph() = new(0, [], Dict())
     #blibblob::Bool # cache validation blibblob
     # when graph is mutated -> blibblob ≠ blibblob
     # val(graph, node) -> if graph.blibblob = node.blibblob ; return node.cache ;
@@ -129,13 +129,13 @@ function Base.:push!(g::ADGraph, node)::NodeID
         throw("Cannot push NodeID to Graph")
     end
     data = as_node(node)
-    #nh = nodehash(node)
+    nh = nodehash(data)
     #if occursin("const", nh[1])
     #    nh = ("const $(length(g.nodes)))", [])
     #end
-    #if nh[1] != "const" && haskey(g.cache, nh)
-    #    return NodeID(g.cache[nh], g)
-    #end
+    if !occursin("const", nh[1]) && haskey(g.cache, nh)
+        return NodeID(g.cache[nh], g)
+    end
     push!(g.nodes, data)
     NodeID(length(g.nodes), g)
 end
