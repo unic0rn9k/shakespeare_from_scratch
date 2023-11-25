@@ -94,6 +94,12 @@ The code used to generate the graph, and do the comparison between the torch and
 |    ❌        | Softmax                             |
 |    ❌        | Cross-entropy                       |
 
+# TODO / Roadmap
+- [ ] Validate correct usage of `*` vs `elemmul` everywhere.
+- [ ] Node caching/pruning
+- [ ] Static shapes
+- [ ] transformer
+
 ## Transformer Validation Spec
 
 Test with basic decoder model, that has no trig mask or positional encoding. Basically just a model that is as simple as possible.

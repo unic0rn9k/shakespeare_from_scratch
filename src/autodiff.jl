@@ -1,10 +1,3 @@
-begin
-    #using Markdown
-    #using InteractiveUtils
-    #using StaticArrays
-    #using CUDA
-end
-
 ## AD from scratch
 # - Caching
 # - Pruning
@@ -29,10 +22,6 @@ begin
     Base.:/(::Nothing, ::Nothing) = nothing
     Base.:/(l::MathObj, ::Nothing) = l
     Base.:/(::Nothing, r::MathObj) = 1 / r
-    #Base.:*(l::MathObj, r::MathObj) = l .* r
-    #Base.:+(l::MathObj, r::MathObj) = l .+ r
-    #Base.:-(l::MathObj, r::MathObj) = l .- r
-    #Base.:/(l::MathObj, r::MathObj) = l ./ r
 
     elemop(f::Function, l::MathObj, r::MathObj)::MathObj = f.(l, r)
     elemop(f::Function, l::MathObj, r::Nothing)::MathObj = f(l, r)
@@ -55,12 +44,11 @@ struct NodeID
 end
 
 mutable struct ADNode
-    version::UInt
     name::String
     op::Operation
     inputs::Vector{NodeID}
     function ADNode(a,b,c)
-        new(0,a,b,c)
+        new(a,b,c)
     end
 end
 
@@ -187,6 +175,7 @@ function Base.:transpose(x::NodeID)::NodeID
     ))
 end
 
+# TODO: Allow for specifying dimensions to sum over.
 function Base.:sum(x::NodeID; dims=1:ndims(val(x)))::NodeID
     push!(x.source, ADNode(
         "sum",
