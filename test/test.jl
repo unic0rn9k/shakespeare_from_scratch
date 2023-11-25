@@ -1,5 +1,6 @@
 include("../src/Shakespeare.jl")
 using .Shakespeare
+using Test
 using Pickle
 using Plots
 
@@ -53,7 +54,7 @@ models::Dict{String, Function} = Dict(
         (w, x, y, b) = push!(m, ["w", "x", "y", "b"])
         y_hat = softmax(x*w+b)
         loss = mse_loss(y, y_hat)
-        optimizer = Adam(0.1, [w], loss)
+        optimizer = SGD(0.1, [w], loss)
         initialize_optimizer!(m, optimizer)
         m
     end,
@@ -67,25 +68,23 @@ models::Dict{String, Function} = Dict(
     end
 )
 
-function compare()
-    ntest = 10000
-    for (name, f) in models
-        @testset "$name" begin
-            model = f(ModelComparitor(name))
-            for i in 1:ntest
-                try
-                    step!(model)
-                catch err
-                    @warn(err)
-                    println("Validating '$name'...   done")
-                    @info("Collected $i samples")
-                    break
-                end
-                print("Validating '$name'... $(i*100/ntest)%\r")
+ntest = 10000
+for (name, f) in models
+    @testset "$name" begin
+        model = f(ModelComparitor(name))
+        for i in 1:ntest
+            try
+                step!(model)
+            catch err
+                @warn(err)
+                println("Validating '$name'...   done")
+                @info("Collected $i samples")
+                break
             end
-            saveplot(model)
-            delete!(models, name)
-            @test model.drift[end] < 0.1
+            print("Validating '$name'... $(i*100/ntest)%\r")
         end
+        saveplot(model)
+        delete!(models, name)
+        @test model.drift[end] < 0.1
     end
 end
