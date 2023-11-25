@@ -5,31 +5,5 @@ module Shakespeare
     include("optimizer.jl")
     include("loss.jl")
 
-    const test_mode = true
-    if test_mode
-        @testset "PyTorch comparison" begin
-            include("test.jl")
-            for name in keys(models)
-                @info("Building artifacts for '$name'")
-                run(`python3 py/$name.py`)
-            end
-            compare()
-        end
-    end
-
-    export ADGraph
-    export one_hot
-    export softmax
-    export mse_loss
-    export Adam
-    export optimize!
-    export set!
-    export val
-    export SGD
-    export Δ
-    export Δ!
-    export rename!
-    export cross_entropy
-    export NodeID
-    export Optimizer
+    export ADGraph, one_hot, softmax, mse_loss, Adam, optimize!, set!, val, SGD, Δ, Δ!, rename!, cross_entropy, NodeID, Optimizer
 end

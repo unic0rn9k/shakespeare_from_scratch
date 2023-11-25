@@ -409,7 +409,6 @@ function softmax(x::NodeID)::NodeID
     ))
 end
 
-# Implement debugging nodes, as single line equations, without values
 function Base.:show(io::IO, node::NodeID)
     inner = node.source.nodes[node.id]
     if occursin("const", inner.name)
