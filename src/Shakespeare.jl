@@ -5,7 +5,7 @@ module Shakespeare
     include("optimizer.jl")
     include("loss.jl")
 
-    const test_mode = false
+    const test_mode = true
     if test_mode
         @testset "PyTorch comparison" begin
             include("test.jl")
@@ -30,4 +30,6 @@ module Shakespeare
     export Δ!
     export rename!
     export cross_entropy
+    export NodeID
+    export Optimizer
 end

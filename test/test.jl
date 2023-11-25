@@ -1,5 +1,5 @@
-#include("../src/Shakespeare.jl")
-#using .Shakespeare
+include("../src/Shakespeare.jl")
+using .Shakespeare
 using Pickle
 using Plots
 
@@ -53,7 +53,7 @@ models::Dict{String, Function} = Dict(
         (w, x, y, b) = push!(m, ["w", "x", "y", "b"])
         y_hat = softmax(x*w+b)
         loss = mse_loss(y, y_hat)
-        optimizer = SGD(0.1, [w], loss)
+        optimizer = Adam(0.1, [w], loss)
         initialize_optimizer!(m, optimizer)
         m
     end,

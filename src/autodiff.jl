@@ -140,8 +140,8 @@ function Base.:push!(g::ADGraph, node)::NodeID
     NodeID(length(g.nodes), g)
 end
 
-function Base.:rand(g::ADGraph, shape::Tuple{Vararg{Int}})::NodeID
-    push!(g, rand(shape...) .* 2 .- 1)
+function Base.:rand(g::ADGraph, opts...)::NodeID
+    push!(g, randn(opts...))
 end
 
 function set!(node::NodeID, value)
