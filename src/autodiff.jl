@@ -176,11 +176,11 @@ function Base.:transpose(x::NodeID)::NodeID
 end
 
 # TODO: Allow for specifying dimensions to sum over.
-function Base.:sum(x::NodeID; dims=1:ndims(val(x)))::NodeID
+# (this isn't going to be possible to implement properly without static dimensions)
+function Base.:sum(x::NodeID)::NodeID
     push!(x.source, ADNode(
         "sum",
         Operation(
-            #(x) -> sum(x[1], dims=dims),
             (x) -> sum(x[1]),
             (g, ctx) -> Δ!(x, ctx)
         ),
