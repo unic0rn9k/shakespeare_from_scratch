@@ -134,7 +134,6 @@ end
 
 function set!(node::NodeID, value)
     node.source.nodes[node.id] = as_node(value)
-    node.source.nodes[node.id].version = node.source.version
 end
 
 function rename!(node::NodeID, name::String)

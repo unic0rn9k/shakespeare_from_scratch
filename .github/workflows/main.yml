@@ -3,7 +3,7 @@ name: Julia Package CI
 on:
   push:
     branches:
-      - master
+      - '*'
 
 jobs:
   test:
