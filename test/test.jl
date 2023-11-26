@@ -1,5 +1,8 @@
 include("../src/Shakespeare.jl")
 using .Shakespeare
+import Pkg
+Pkg.add("Pickle")
+Pkg.add("Plots")
 using Test
 using Pickle
 using Plots
