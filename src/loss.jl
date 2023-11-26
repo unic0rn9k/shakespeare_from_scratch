@@ -1,4 +1,4 @@
-mse_loss = (y::NodeID, ŷ) -> sum((y - ŷ)^2)# / push!(y.source, length(val(ŷ)))
+mse_loss = (y::NodeID, ŷ) -> sum((y - ŷ)^2) / push!(y.source, length(val(ŷ)))
 
 cross_entropy = (y, ŷ) -> -sum(elemmul(y, log(ŷ + push!(y.source, 1e-8))))
 

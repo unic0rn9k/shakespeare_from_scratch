@@ -96,8 +96,8 @@ The code used to generate the graph, and do the comparison between the torch and
 
 # TODO / Roadmap
 - [ ] Validate correct usage of `*` vs `elemmul` everywhere.
+- [ ] Static shapes (currently, any place that uses runtime shape information, may cause bugs)
 - [ ] Node caching/pruning
-- [ ] Static shapes
 - [ ] transformer
 
 ## Transformer Validation Spec
