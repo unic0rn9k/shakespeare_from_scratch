@@ -55,10 +55,9 @@ end
 nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
 
 mutable struct ADGraph <: Graph
-    version::UInt
     nodes::Vector{ADNode}
     cache::Dict{Tuple{String,Vector{UInt}},UInt}
-    ADGraph() = new(0, [], Dict())
+    ADGraph() = new([], Dict())
     #blibblob::Bool # cache validation blibblob
     # when graph is mutated -> blibblob ≠ blibblob
     # val(graph, node) -> if graph.blibblob = node.blibblob ; return node.cache ;
@@ -134,7 +133,6 @@ end
 
 function set!(node::NodeID, value)
     node.source.nodes[node.id] = as_node(value)
-    node.source.nodes[node.id].version = node.source.version
 end
 
 function rename!(node::NodeID, name::String)
@@ -463,85 +461,102 @@ function Δ(f, wrt; cuda=false)
     Δ!(f, DiffCtx(push!(f.source, od), wrt))
 end
 
+
+function func(f::NodeID, params::NodeID...)::Function
+    (vars::MathObj...) -> begin
+        for (p, v) in zip(params, vars)
+            set!(p, v)
+        end
+        val(f)
+    end
+end
+
 ## Unit tests
 @testset "autodiff.jl" begin
+    @testset "Basic scalar AD" begin
+        local g = ADGraph()
+        local a = push!(g, 3)
 
-@testset "Basic scalar AD" begin
-    local g = ADGraph()
-    local a = push!(g, 3)
+        local b = push!(g, 4)
+        local c = a * b
+        @test(val(a) == 3)
+        @test(val(c) == 3 * 4)
+        local db = Δ!(c, wrt(b))
+        @test(val(db) == 3)
 
-    local b = push!(g, 4)
-    local c = a * b
-    @test(val(a) == 3)
-    @test(val(c) == 3 * 4)
-    local db = Δ!(c, wrt(b))
-    @test(val(db) == 3)
+        local d = push!(g, 5)
+        local e = c + d
+        local f = e * push!(g, 2)
 
-    local d = push!(g, 5)
-    local e = c + d
-    local f = e * push!(g, 2)
+        @test(val(Δ(f, d)) == 2)
+        @test(val(Δ(f, c)) == 2)
+        @test(val(Δ(f, b)) == 6)
+    end
 
-    @test(val(Δ(f, d)) == 2)
-    @test(val(Δ(f, c)) == 2)
-    @test(val(Δ(f, b)) == 6)
-end
+    @testset "Basic matrix tests + (mby) CUDA" begin
+        local g = ADGraph()
+        #local a = transpose(push!(g, CuArray([1 2; 3 4; 5 6])))
+        #local b = push!(g, transpose(CuArray([1 2 3 0; 4 5 6 0; 7 8 9 0])))
+        #local d = push!(g, CUDA.ones(2, 4))
 
-@testset "Basic matrix tests + (mby) CUDA" begin
-    local g = ADGraph()
-    #local a = transpose(push!(g, CuArray([1 2; 3 4; 5 6])))
-    #local b = push!(g, transpose(CuArray([1 2 3 0; 4 5 6 0; 7 8 9 0])))
-    #local d = push!(g, CUDA.ones(2, 4))
+        local a = transpose(push!(g, [1 2; 3 4; 5 6]))
+        local b = push!(g, transpose([1 2 3 0; 4 5 6 0; 7 8 9 0]))
+        local d = push!(g, ones(2, 4))
 
-    local a = transpose(push!(g, [1 2; 3 4; 5 6]))
-    local b = push!(g, transpose([1 2 3 0; 4 5 6 0; 7 8 9 0]))
-    local d = push!(g, ones(2, 4))
+        local c = exp(d) + a * transpose(b)
+        local c = c * b + a
 
-    local c = exp(d) + a * transpose(b)
-    local c = c * b + a
+        local da = val(Δ(c, a))
+        local db = val(Δ(c, b))
+        local dd = val(Δ(c, d))
+        #gn = length(g.nodes)
+        #local bruh = c*b
+        #@assert(gn == length(g.nodes), keys(g.cache))
 
-    local da = val(Δ(c, a))
-    local db = val(Δ(c, b))
-    local dd = val(Δ(c, d))
-    #gn = length(g.nodes)
-    #local bruh = c*b
-    #@assert(gn == length(g.nodes), keys(g.cache))
+        @test(size(da) == size(val(a)))
+        @test(size(db) == size(val(b)))
+        @test(size(dd) == size(val(d)))
 
-    @test(size(da) == size(val(a)))
-    @test(size(db) == size(val(b)))
-    @test(size(dd) == size(val(d)))
 
-    #@test dd ≈ numeric_gradient(c, [d])[1]
-end
+        using FiniteDiff
+        @test val(c) == func(c, d)(val(d))
 
-@testset "Softmax test" begin
-    local x = rand(1000)
-    local sm = exp.(x) / sum(exp.(x))
-    local dsm = sm .* (1 .- sm)
+        dd2 = sum(FiniteDiff.finite_difference_jacobian(func(c, d), val(d)), dims=1)
 
-    local g = ADGraph()
-    local x = push!(g, x)
+        for (a,b) in zip(dd2, dd)
+            @test abs(a-b) < 1e-3
+        end
+    end
 
-    local sm2 = softmax(x)
-    local dsm2 = Δ(sm2, x)
+    @testset "Softmax test" begin
+        local x = rand(1000)
+        local sm = exp.(x) / sum(exp.(x))
+        local dsm = sm .* (1 .- sm)
 
-    @test(sm ≈ val(sm2))
-    @test(dsm ≈ val(dsm2))
-end
+        local g = ADGraph()
+        local x = push!(g, x)
 
-@testset "cat and slice test" begin
-    #local g = ADGraph()
-    #local a = rand(g, (3, 4))
-    #local b = rand(g, (3, 4))
+        local sm2 = softmax(x)
+        local dsm2 = Δ(sm2, x)
 
-    #local c = cat(a, elemmul(b, a), dims=2)
-    #local d = c[1:3, 3:5]
+        @test(sm ≈ val(sm2))
+        @test(dsm ≈ val(dsm2))
+    end
 
-    #local db = Δ(c, b)
-    #local da = Δ(d, a)
+    @testset "cat and slice test" begin
+        #local g = ADGraph()
+        #local a = rand(g, (3, 4))
+        #local b = rand(g, (3, 4))
 
-    #@test(val(db) == val(a))
-    ##println(val(da, debug=true))
-    #e = cat(a, push!(g, nothing), dims=1)
-    #@test val(e) == val(a)
-end
+        #local c = cat(a, elemmul(b, a), dims=2)
+        #local d = c[1:3, 3:5]
+
+        #local db = Δ(c, b)
+        #local da = Δ(d, a)
+
+        #@test(val(db) == val(a))
+        ##println(val(da, debug=true))
+        #e = cat(a, push!(g, nothing), dims=1)
+        #@test val(e) == val(a)
+    end
 end
