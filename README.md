@@ -2,21 +2,6 @@
 A transformer implementation, in Julia only depending on the standart library.
 Also has optional support for GPU, which depends on the CUDA package.
 
-# About and usage
-The project is pretty small, coming in at just under 600, at the moment.
-
-```txt
---------------------------------------------------------------------------------
- Language             Files        Lines        Blank      Comment         Code
---------------------------------------------------------------------------------
- Plain Text               1        40000         7223            0        32777
- Julia                    6          718          108           33          577
- Markdown                 1           62           15            0           47
---------------------------------------------------------------------------------
- Total                    8        40780         7346           33        33401
---------------------------------------------------------------------------------
-```
-
 ## Example mnist classifier
 
 An mnist classifier, using [autodiff.jl](autodiff.jl), to work as a proof-of-concept.
