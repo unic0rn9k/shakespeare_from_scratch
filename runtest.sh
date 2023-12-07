@@ -2,4 +2,9 @@
 # Run unit tests with julia and precompilation disabled
 mkdir -p './test/artifacts/'
 rm -rf './test/artifacts/*'
-TEST='true' julia --compiled-modules=no --code-coverage=user --project=. -e 'using Pkg; Pkg.test()'
+cd test
+for p in py/* 
+do
+  python3 $p
+done
+TEST='true' julia 'test.jl'

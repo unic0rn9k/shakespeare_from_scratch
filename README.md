@@ -79,7 +79,7 @@ Outputs:
 ## One to one comparison with PyTorch
 Optimizing a parameter in a linear projection (matmul), fed into a softmax function, and testing against values, and initial states, generated with PyTorch (see [linear_softmax.py](test/py/linear_softmax.py)).
 
-![](test/drift.png)
+![](test/compare_plots/linear_softmax.png)
 
 The graph shows, the mean square error between the expected parameter value from PyTorch, and actual parameter of the linear projection, on the Y-axis. And the iteration of optimization on the x-axis.
 
@@ -96,8 +96,8 @@ The code used to generate the graph, and do the comparison between the torch and
 
 # TODO / Roadmap
 - [ ] Validate correct usage of `*` vs `elemmul` everywhere.
+- [ ] Static shapes (currently, any place that uses runtime shape information, may cause bugs)
 - [ ] Node caching/pruning
-- [ ] Static shapes
 - [ ] transformer
 
 ## Transformer Validation Spec
