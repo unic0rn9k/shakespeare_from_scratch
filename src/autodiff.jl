@@ -43,12 +43,12 @@ struct NodeID
     source::Graph
 end
 
-mutable struct ADNode
+mutable struct ADNode{S}
     name::String
     op::Operation
     inputs::Vector{NodeID}
-    function ADNode(a,b,c)
-        new(a,b,c)
+    function ADNode(a,b,c; S=())
+        new{S}(a,b,c)
     end
 end
 
@@ -92,7 +92,7 @@ function Base.:(==)(::ADNode, ::ADNode)::Bool
 end
 
 function as_node(value)::ADNode
-    if typeof(value) == ADNode
+    if typeof(value) <: ADNode
         value
     else
         ADNode(
