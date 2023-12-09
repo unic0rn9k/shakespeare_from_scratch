@@ -78,20 +78,3 @@ The code used to generate the graph, and do the comparison between the torch and
 |    ✅        | Adam Optimizer                      |
 |    ❌        | Softmax                             |
 |    ❌        | Cross-entropy                       |
-
-# TODO / Roadmap
-- [ ] Validate correct usage of `*` vs `elemmul` everywhere.
-- [ ] Static shapes (currently, any place that uses runtime shape information, may cause bugs)
-- [ ] Node caching/pruning
-- [ ] transformer
-
-## Transformer Validation Spec
-
-Test with basic decoder model, that has no trig mask or positional encoding. Basically just a model that is as simple as possible.
-
-```txt
-123#56 = 4
-..34#6 = 5
-#...56 = 1
-1...#. = 5
-```
