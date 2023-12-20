@@ -43,14 +43,18 @@ struct NodeID
     source::Graph
 end
 
-mutable struct ADNode{S}
+mutable struct ADNode
     name::String
     op::Operation
     inputs::Vector{NodeID}
-    function ADNode(a,b,c; S=())
-        new{S}(a,b,c)
+    const shape::Tuple
+    function ADNode(a,b,c; S::Tuple=())
+        new(a,b,c,S)
     end
 end
+
+Base.:size(node::ADNode) = node.shape
+Base.:size(node::NodeID) = size(node.source.nodes[node.id])
 
 nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
 
@@ -106,6 +110,7 @@ function as_node(value)::ADNode
                 end
             ),
             [],
+            S=size(value)
         )
     end
 end
@@ -132,6 +137,7 @@ function Base.:rand(g::ADGraph, opts...)::NodeID
 end
 
 function set!(node::NodeID, value)
+    @assert size(value) == size(node)
     node.source.nodes[node.id] = as_node(value)
 end
 
@@ -148,6 +154,7 @@ function →(node::NodeID)::ADNode
             (g, ctx) -> Δ!(node, ctx)
         ),
         adnode.inputs,
+        S=size(node)
     )
 end
 
@@ -162,6 +169,9 @@ function Δ!(node::NodeID, ctx::DiffCtx)::NodeID
     end
 end
 
+Base.:transpose(x::Tuple{Int, Int}) = (x[2], x[1])
+Base.:transpose(::Tuple{}) = ()
+
 function Base.:transpose(x::NodeID)::NodeID
     push!(x.source, ADNode(
         "T",
@@ -170,6 +180,7 @@ function Base.:transpose(x::NodeID)::NodeID
             (g, ctx) -> Δ!(x, but(ctx, transpose(ctx.outerd)))
         ),
         [x],
+        S=transpose(size(x))
     ))
 end
 
@@ -449,7 +460,7 @@ function func(f::NodeID, params::NodeID...)::Function
     end
 end
 
-if ENV["TEST"]=="true"
+if get(ENV, "TEST", false) == true
     using Pkg
     Pkg.add("FiniteDiff")
     using FiniteDiff
