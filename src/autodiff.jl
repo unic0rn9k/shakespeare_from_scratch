@@ -509,8 +509,6 @@ function func(f::NodeID, params::NodeID...)::Function
 end
 
 if get(ENV, "TEST", "false") == "true"
-    #using Pkg
-    #Pkg.add("FiniteDiff")
     using FiniteDiff
 
     function validate_func(f::NodeID, params::NodeID...)
