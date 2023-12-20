@@ -15,7 +15,7 @@ begin
     Base.:*(::Nothing, ::Nothing) = nothing
     Base.:+(::Nothing, ::Nothing) = nothing
     Base.:exp(x::AbstractArray) = exp.(x)
-    Base.:size(::Nothing) = 0
+    Base.:size(::Nothing) = ()
     Base.:-(::Nothing, ::Nothing) = nothing
     Base.:-(l::MathObj, ::Nothing) = l
     Base.:-(::Nothing, r::MathObj) = -r
@@ -48,7 +48,7 @@ mutable struct ADNode
     op::Operation
     inputs::Vector{NodeID}
     const shape::Tuple
-    function ADNode(a,b,c; S::Tuple=())
+    function ADNode(a,b,c; S::Tuple)
         new(a,b,c,S)
     end
 end
@@ -120,7 +120,11 @@ function Base.:push!(g::ADGraph, node)::NodeID
     if typeof(node) == NodeID
         throw("Cannot push NodeID to Graph")
     end
-    data = as_node(node)
+    data = try
+        as_node(node)
+    catch
+        rethrow(node)
+    end
     nh = nodehash(data)
     #if occursin("const", nh[1])
     #    nh = ("const $(length(g.nodes)))", [])
@@ -194,11 +198,21 @@ function Base.:sum(x::NodeID)::NodeID
             (g, ctx) -> Δ!(x, ctx)
         ),
         [x],
+        S=()
     ))
 end
 
+function elemop_size(a::Tuple, b::Tuple)
+    @assert(a == b)
+    a
+end
+elemop_size(a::Tuple, ::Tuple{}) = a
+elemop_size(::Tuple{}, a::Tuple) = a
+elemop_size(::Tuple{}, ::Tuple{}) = ()
+
 function Base.:+(a::NodeID, b::NodeID)::NodeID
     @assert(a.source == b.source)
+
     push!(a.source, ADNode(
         "+",
         Operation(
@@ -206,7 +220,16 @@ function Base.:+(a::NodeID, b::NodeID)::NodeID
             (g, ctx) -> Δ!(a, ctx) + Δ!(b, ctx)
         ),
         [a, b],
+        S=elemop_size(size(a), size(b))
     ))
+end
+
+mul_size(a::Tuple, ::Tuple{}) = a
+mul_size(::Tuple{}, a::Tuple) = a
+mul_size(::Tuple{}, ::Tuple{}) = ()
+function mul_size(a::Tuple{Int, Int}, b::Tuple{Int, Int})
+    @assert a[2] == b[1]
+    (a[1], b[2])
 end
 
 function Base.:*(a::NodeID, b::NodeID)::NodeID
@@ -225,11 +248,13 @@ function Base.:*(a::NodeID, b::NodeID)::NodeID
             end
         ),
         [a, b],
+        S=mul_size(size(a), size(b))
     ))
 end
 
 function elemmul(a::NodeID, b::NodeID)::NodeID
     @assert(a.source == b.source)
+
     push!(a.source, ADNode(
         ".*",
         Operation(
@@ -241,6 +266,7 @@ function elemmul(a::NodeID, b::NodeID)::NodeID
             end
         ),
         [a, b],
+        S=elemop_size(size(a), size(b))
     ))
 end
 
@@ -254,11 +280,13 @@ function Base.:exp(x::NodeID)::NodeID
             end
         ),
         [x],
+        S=size(x)
     ))
 end
 
 function Base.:-(a::NodeID, b::NodeID)::NodeID
     @assert(a.source == b.source)
+
     push!(a.source, ADNode(
         "-",
         Operation(
@@ -271,6 +299,7 @@ function Base.:-(a::NodeID, b::NodeID)::NodeID
             end
         ),
         [a, b],
+        S=elemop_size(size(a), size(b))
     ))
 end
 
@@ -282,11 +311,13 @@ function Base.:-(a::NodeID)::NodeID
             (g, ctx) -> Δ!(a, but(ctx, -ctx.outerd))
         ),
         [a],
+        S=size(a)
     ))
 end
 
 function Base.:/(a::NodeID, b::NodeID)::NodeID
     @assert(a.source == b.source)
+
     push!(a.source, ADNode(
         "./",
         Operation(
@@ -301,6 +332,7 @@ function Base.:/(a::NodeID, b::NodeID)::NodeID
             end
         ),
         [a, b],
+        S=elemop_size(size(a), size(b))
     ))
 end
 
@@ -315,6 +347,7 @@ function Base.:^(x::NodeID, n::Integer)::NodeID
             end
         ),
         [x],
+        S=size(x)
     ))
 end
 
@@ -328,9 +361,11 @@ function Base.:log(x::NodeID)::NodeID
             end
         ),
         [x],
+        S=size(x)
     ))
 end
 
+# TODO: test / verify my test
 function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
     push!(x.source, ADNode(
         "padded $size $pos",
@@ -345,8 +380,13 @@ function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
             end
         ),
         [x],
+        S=size
     ))
 end
+
+index_size(i::Vector) = ([index_size(i) for i in i]...,)
+index_size(::Int) = ()
+index_size(i::UnitRange{Int64}) = i.stop - i.start
 
 function Base.:getindex(x::NodeID, i...)::NodeID
     push!(x.source, ADNode(
@@ -354,11 +394,17 @@ function Base.:getindex(x::NodeID, i...)::NodeID
         Operation(
             (x) -> getindex(x[1], i...),
             function (g, ctx)
-                Δ!(x, but(ctx, padded(ctx.outerd, size(val(x)), i)))
+                Δ!(x, but(ctx, padded(ctx.outerd, size(x), i)))
             end
         ),
         [x],
+        S=index_size([i...])
     ))
+end
+
+# TODO: make less stupid?
+function cat_size(sizes::Vector{NodeID}, dims)
+    size(cat([zeros(s) for s in sizes]..., dims=dims))
 end
 
 function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
@@ -382,6 +428,7 @@ function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
             end
         ),
         [nodes...],
+        S=cat_size([size(n) for n in nodes], dims)
     ))
 end
 
@@ -404,6 +451,7 @@ function softmax(x::NodeID)::NodeID
             end
         ),
         [x],
+        S = size(x)
     ))
 end
 
@@ -460,9 +508,9 @@ function func(f::NodeID, params::NodeID...)::Function
     end
 end
 
-if get(ENV, "TEST", false) == true
-    using Pkg
-    Pkg.add("FiniteDiff")
+if get(ENV, "TEST", "false") == "true"
+    #using Pkg
+    #Pkg.add("FiniteDiff")
     using FiniteDiff
 
     function validate_func(f::NodeID, params::NodeID...)
