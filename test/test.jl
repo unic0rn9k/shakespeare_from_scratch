@@ -74,7 +74,7 @@ for (name, f) in models
                 @info("Collected $i samples")
                 break
             end
-            print("Validating '$name'... $(i*100/ntest)%\r")
+            #print("Validating '$name'... $(i*100/ntest)%\r")
         end
         saveplot(model)
         delete!(models, name)

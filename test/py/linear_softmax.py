@@ -24,5 +24,5 @@ for i in range(ntest):
     loss.backward()
     optimizer.step()
 
-    print(f"Generating python test artifacts... {i*100/ntest}%", end="\r")
+    #print(f"Generating python test artifacts... {i*100/ntest}%", end="\r")
 print("Generating python test artifacts...   done")

@@ -508,7 +508,7 @@ function func(f::NodeID, params::NodeID...)::Function
     end
 end
 
-if get(ENV, "TEST", "false") == "true"
+if get(ENV, "TEST", 0) == "true"
     using FiniteDiff
 
     function validate_func(f::NodeID, params::NodeID...)
