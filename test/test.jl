@@ -13,22 +13,19 @@ mutable struct ModelComparitor
     optimizer::Union{Optimizer,Nothing}
     iter::Int
     drift::Array{Float64}
+    graph::ADGraph
     function ModelComparitor(name::String)
-        return new(name, Dict(), nothing, 0, [])
+        return new(name, Dict(), nothing, 0, [], ADGraph())
     end
 end
 
 function Base.:push!(m::ModelComparitor, p::Vector{String})::Vector{NodeID}
     nodes = []
     for p in p
-        m.parameters[p] = push!(g, Pickle.Torch.THload("artifacts/$(m.name)_$p$(m.iter).pt"))
+        m.parameters[p] = push!(m.graph, Pickle.Torch.THload("artifacts/$(m.name)_$p$(m.iter).pt"))
         push!(nodes, m.parameters[p])
     end
     nodes
-end
-
-function initialize_optimizer!(m::ModelComparitor, optimizer::Optimizer)
-    m.optimizer = optimizer
 end
 
 function step!(m::ModelComparitor)
@@ -50,23 +47,19 @@ function saveplot(m::ModelComparitor)
     savefig(plot(m.drift), "compare_plots/$(m.name).png")
 end
 
-g = ADGraph()
-
 models::Dict{String, Function} = Dict(
     "linear_softmax" => function(m)
         (w, x, y, b) = push!(m, ["w", "x", "y", "b"])
         y_hat = softmax(x*w+b)
         loss = mse_loss(y, y_hat)
-        optimizer = SGD(0.1, [w], loss)
-        initialize_optimizer!(m, optimizer)
+        m.optimizer = SGD(0.1, [w], loss)
         m
     end,
     "adem" => function(m)
         (w, x, b, y) = push!(m, ["w", "x", "b", "y"])
         y_hat = x*w+b
         loss = mse_loss(y, y_hat)
-        optimizer = Adam(0.1, [w, b], loss)
-        initialize_optimizer!(m, optimizer)
+        m.optimizer = Adam(0.1, [w, b], loss)
         m
     end
 )
