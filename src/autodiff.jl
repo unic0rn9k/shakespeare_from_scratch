@@ -185,11 +185,9 @@ function Base.:transpose(x::NodeID)::NodeID
     ))
 end
 
-# STUPID
+# TODO: Make less stupid
 sum_size(x::NodeID, dims) = size(sum(zeros(size(x)), dims=dims))
 
-# TODO: Allow for specifying dimensions to sum over.
-# (this isn't going to be possible to implement properly without static dimensions)
 function Base.:sum(x::NodeID; dims)::NodeID
     push!(x.source, ADNode(
         "sum(dims=$dims)",
@@ -213,7 +211,6 @@ function Base.:sum(x::NodeID)::NodeID
     ))
 end
 
-# TODO: show NodeID for a and b if assertion fails
 function elemop_size_(a::Tuple, b::Tuple)
     @assert(a == b)
     a
@@ -318,9 +315,6 @@ function Base.:-(a::NodeID, b::NodeID)::NodeID
         Operation(
             (x) -> elemop(-, x[1], x[2]),
             (g, ctx) -> begin
-                #@show val(ctx.outerd)
-                #@show Δ!(a, ctx)
-                #@show -Δ!(b, ctx)
                 Δ!(a, ctx) + Δ!(b, but(ctx, -ctx.outerd))
             end
         ),
@@ -369,7 +363,6 @@ function Base.:^(x::NodeID, n::Integer)::NodeID
             (x) -> elemop(^, x[1], n),
             function (g, ctx)
                 Δ!(x, but(ctx, ctx.outerd * elemmul(push!(g, n), x^(n - 1))))
-                #Δ!(x, ctx) * push!(g, n) * ctx.outerd * x^(n - 1)
             end
         ),
         [x],
@@ -391,7 +384,6 @@ function Base.:log(x::NodeID)::NodeID
     ))
 end
 
-# TODO: test / verify my test
 function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
     push!(x.source, ADNode(
         "padded $size $pos",
@@ -629,14 +621,6 @@ if get(ENV, "TEST", 0) == "true"
 
             validate_func(d, a, b, c)
             validate_func(c, a, b)
-
-            #db = Δ(c, b)
-            #da = Δ(d, a)
-
-            #@test(val(db) == val(a))
-            ##println(val(da, debug=true))
-            #e = cat(a, push!(g, nothing), dims=1)
-            #@test val(e) == val(a)
         end
     end
 end
