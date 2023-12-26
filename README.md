@@ -4,7 +4,7 @@ Also has optional support for GPU, which depends on the CUDA package.
 
 ## Example mnist classifier
 
-An mnist classifier, using [autodiff.jl](autodiff.jl), to work as a proof-of-concept.
+An mnist classifier, using [`src/autodiff.jl`](autodiff.jl), to work as a proof-of-concept.
 ```julia
 using MLDatasets
 
@@ -60,7 +60,10 @@ Outputs:
 # 100%
 # After training:  74.85000000000001%
 ```
-# Development
+# Development - validation and testing
+## Validating against numerically differentiated expressions
+`src/autodiff.jl` has unit test in [the bottom of the file](https://github.com/unic0rn9k/shakespeare_from_scratch/blob/bd5c2a14ae783762a626c398ab5e62dde74e4fa8/src/autodiff.jl#L525), defining expressions to validate against numerical derivatives calculated with [FiniteDiff.jl](https://github.com/JuliaDiff/FiniteDiff.jl).
+
 ## One to one comparison with PyTorch
 Optimizing a parameter in a linear projection (matmul), fed into a softmax function, and testing against values, and initial states, generated with PyTorch (see [linear_softmax.py](test/py/linear_softmax.py)).
 
@@ -69,12 +72,3 @@ Optimizing a parameter in a linear projection (matmul), fed into a softmax funct
 The graph shows, the mean square error between the expected parameter value from PyTorch, and actual parameter of the linear projection, on the Y-axis. And the iteration of optimization on the x-axis.
 
 The code used to generate the graph, and do the comparison between the torch and julia parameters, is located at [test.jl](https://github.com/unic0rn9k/shakespeare_from_scratch/blob/master/src/test.jl#L50-L57) (test/runtests.jl didn't work with my LSP configuration for some reason, so this is an easy workaround)
-
-### Tested functions
-| sub 1e-4 MSE | Function                            |
-|--------------|-------------------------------------|
-|    ✅        | Matrix Multiplication               |
-|    ✅        | Stochastic Gradient Decent (SGD)    |
-|    ✅        | Adam Optimizer                      |
-|    ❌        | Softmax                             |
-|    ❌        | Cross-entropy                       |
