@@ -188,26 +188,15 @@ end
 # TODO: Make less stupid
 sum_size(x::NodeID, dims) = size(sum(zeros(size(x)), dims=dims))
 
-function Base.:sum(x::NodeID; dims)::NodeID
+function Base.:sum(x::NodeID; dims=nothing)::NodeID
     push!(x.source, ADNode(
         "sum(dims=$dims)",
         Operation(
-            (x) -> sum(x[1], dims=dims),
+            (x) -> dims===nothing ? sum(x[1]) : sum(x[1], dims=dims),
             (g, ctx) -> Δ!(x, ctx)
         ),
         [x],
-        S=sum_size(x, dims)
-    ))
-end
-function Base.:sum(x::NodeID)::NodeID
-    push!(x.source, ADNode(
-        "sum",
-        Operation(
-            (x) -> sum(x[1]),
-            (g, ctx) -> Δ!(x, ctx)
-        ),
-        [x],
-        S=()
+        S=dims===nothing ? () : sum_size(x, dims)
     ))
 end
 
@@ -459,18 +448,18 @@ end
 # Instead of computing exp(x - max), we compute exp2(x * log_2(e) -
 # max * log_2(e)) This allows the compiler to use the ffma
 # instruction instead of fadd and fmul separately.
-function softmax(x::MathObj)
+function softmax(x::MathObj; dims=nothing)
     sm = exp2.(x .* log2(ℯ) .- maximum(x) .* log2(ℯ))
-    return sm ./ sum(sm)
+    return sm ./ (dims===nothing ? sum(sm) : sum(sm, dims=dims))
 end
 
-function softmax(x::NodeID)::NodeID
+function softmax(x::NodeID; dims=nothing)::NodeID
     push!(x.source, ADNode(
         "softmax",
         Operation(
-            (x) -> softmax(x[1]),
+            (x) -> softmax(x[1], dims=dims),
             function (g, ctx)
-                Δ!(x, but(ctx, elemmul(elemmul(softmax(x), (push!(g, 1) - softmax(x))), ctx.outerd)))
+                Δ!(x, but(ctx, elemmul(elemmul(softmax(x, dims=dims), (push!(g, 1) - softmax(x, dims=dims))), ctx.outerd)))
             end
         ),
         [x],
@@ -622,5 +611,19 @@ if get(ENV, "TEST", 0) == "true"
             validate_func(d, a, b, c)
             validate_func(c, a, b)
         end
+    end
+
+    @testset "sum" begin
+        g = ADGraph()
+        a = push!(g, randn(3, 4, 5))
+        c = sum(a)
+        d = sum(a, dims=1)
+        e = sum(a, dims=2)
+        f = sum(a, dims=(1,2))
+
+        validate_func(c, a)
+        validate_func(d, a)
+        validate_func(e, a)
+        validate_func(f, a)
     end
 end
