@@ -7,4 +7,4 @@ for p in py/*
 do
   python3 $p
 done
-TEST='true' julia 'test.jl'
+INSTALL='true' TEST='true' julia 'test.jl'

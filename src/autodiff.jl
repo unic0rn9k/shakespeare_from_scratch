@@ -15,7 +15,7 @@ begin
     Base.:*(::Nothing, ::Nothing) = nothing
     Base.:+(::Nothing, ::Nothing) = nothing
     Base.:exp(x::AbstractArray) = exp.(x)
-    Base.:size(::Nothing) = 0
+    Base.:size(::Nothing) = ()
     Base.:-(::Nothing, ::Nothing) = nothing
     Base.:-(l::MathObj, ::Nothing) = l
     Base.:-(::Nothing, r::MathObj) = -r
@@ -47,10 +47,14 @@ mutable struct ADNode
     name::String
     op::Operation
     inputs::Vector{NodeID}
-    function ADNode(a,b,c)
-        new(a,b,c)
+    const shape::Tuple
+    function ADNode(a,b,c; S::Tuple)
+        new(a,b,c,S)
     end
 end
+
+Base.:size(node::ADNode) = node.shape
+Base.:size(node::NodeID) = size(node.source.nodes[node.id])
 
 nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
 
@@ -77,6 +81,7 @@ function val(node_::NodeID; debug::Bool=false)::MathObj
     if debug
         @info("[$(node_.id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(v))")
     end
+    @assert(size(node) == size(v), "Unexpected shape of computed value.\n... node: $node_\n... expected: $(size(node))\n... found: $(size(v))")
     v
 end
 
@@ -92,7 +97,7 @@ function Base.:(==)(::ADNode, ::ADNode)::Bool
 end
 
 function as_node(value)::ADNode
-    if typeof(value) == ADNode
+    if typeof(value) <: ADNode
         value
     else
         ADNode(
@@ -106,6 +111,7 @@ function as_node(value)::ADNode
                 end
             ),
             [],
+            S=size(value)
         )
     end
 end
@@ -115,7 +121,11 @@ function Base.:push!(g::ADGraph, node)::NodeID
     if typeof(node) == NodeID
         throw("Cannot push NodeID to Graph")
     end
-    data = as_node(node)
+    data = try
+        as_node(node)
+    catch
+        rethrow(node)
+    end
     nh = nodehash(data)
     #if occursin("const", nh[1])
     #    nh = ("const $(length(g.nodes)))", [])
@@ -127,11 +137,8 @@ function Base.:push!(g::ADGraph, node)::NodeID
     NodeID(length(g.nodes), g)
 end
 
-function Base.:rand(g::ADGraph, opts...)::NodeID
-    push!(g, randn(opts...))
-end
-
 function set!(node::NodeID, value)
+    @assert size(value) == size(node)
     node.source.nodes[node.id] = as_node(value)
 end
 
@@ -148,6 +155,7 @@ function →(node::NodeID)::ADNode
             (g, ctx) -> Δ!(node, ctx)
         ),
         adnode.inputs,
+        S=size(node)
     )
 end
 
@@ -162,6 +170,9 @@ function Δ!(node::NodeID, ctx::DiffCtx)::NodeID
     end
 end
 
+Base.:transpose(x::Tuple{Int, Int}) = (x[2], x[1])
+Base.:transpose(::Tuple{}) = ()
+
 function Base.:transpose(x::NodeID)::NodeID
     push!(x.source, ADNode(
         "T",
@@ -170,24 +181,43 @@ function Base.:transpose(x::NodeID)::NodeID
             (g, ctx) -> Δ!(x, but(ctx, transpose(ctx.outerd)))
         ),
         [x],
+        S=transpose(size(x))
     ))
 end
 
-# TODO: Allow for specifying dimensions to sum over.
-# (this isn't going to be possible to implement properly without static dimensions)
-function Base.:sum(x::NodeID)::NodeID
+# TODO: Make less stupid
+sum_size(x::NodeID, dims) = size(sum(zeros(size(x)), dims=dims))
+
+function Base.:sum(x::NodeID; dims=nothing)::NodeID
     push!(x.source, ADNode(
-        "sum",
+        "sum(dims=$dims)",
         Operation(
-            (x) -> sum(x[1]),
+            (x) -> dims===nothing ? sum(x[1]) : sum(x[1], dims=dims),
             (g, ctx) -> Δ!(x, ctx)
         ),
         [x],
+        S=dims===nothing ? () : sum_size(x, dims)
     ))
+end
+
+function elemop_size_(a::Tuple, b::Tuple)
+    @assert(a == b)
+    a
+end
+elemop_size_(a::Tuple, ::Tuple{}) = a
+elemop_size_(::Tuple{}, a::Tuple) = a
+elemop_size_(::Tuple{}, ::Tuple{}) = ()
+function elemop_size(a::NodeID, b::NodeID)::Tuple
+    try
+        elemop_size_(size(a),size(b))
+    catch
+        @error("Dimension mismatch. size($a) != size($b)")
+    end
 end
 
 function Base.:+(a::NodeID, b::NodeID)::NodeID
     @assert(a.source == b.source)
+
     push!(a.source, ADNode(
         "+",
         Operation(
@@ -195,7 +225,23 @@ function Base.:+(a::NodeID, b::NodeID)::NodeID
             (g, ctx) -> Δ!(a, ctx) + Δ!(b, ctx)
         ),
         [a, b],
+        S=elemop_size(a, b)
     ))
+end
+
+mul_size_(a::Tuple, ::Tuple{}) = a
+mul_size_(::Tuple{}, a::Tuple) = a
+mul_size_(::Tuple{}, ::Tuple{}) = ()
+function mul_size_(a::Tuple{Int, Int}, b::Tuple{Int, Int})
+    @assert a[2] == b[1]
+    (a[1], b[2])
+end
+function mul_size(a::NodeID, b::NodeID)::Tuple
+    try
+        mul_size_(size(a),size(b))
+    catch
+        @error("Dimension mismatch. size($a) mm size($b)")
+    end
 end
 
 function Base.:*(a::NodeID, b::NodeID)::NodeID
@@ -214,11 +260,13 @@ function Base.:*(a::NodeID, b::NodeID)::NodeID
             end
         ),
         [a, b],
+        S=mul_size(a, b)
     ))
 end
 
 function elemmul(a::NodeID, b::NodeID)::NodeID
     @assert(a.source == b.source)
+
     push!(a.source, ADNode(
         ".*",
         Operation(
@@ -230,6 +278,7 @@ function elemmul(a::NodeID, b::NodeID)::NodeID
             end
         ),
         [a, b],
+        S=elemop_size(a, b)
     ))
 end
 
@@ -243,23 +292,23 @@ function Base.:exp(x::NodeID)::NodeID
             end
         ),
         [x],
+        S=size(x)
     ))
 end
 
 function Base.:-(a::NodeID, b::NodeID)::NodeID
     @assert(a.source == b.source)
+
     push!(a.source, ADNode(
         "-",
         Operation(
             (x) -> elemop(-, x[1], x[2]),
             (g, ctx) -> begin
-                #@show val(ctx.outerd)
-                #@show Δ!(a, ctx)
-                #@show -Δ!(b, ctx)
                 Δ!(a, ctx) + Δ!(b, but(ctx, -ctx.outerd))
             end
         ),
         [a, b],
+        S=elemop_size(a, b)
     ))
 end
 
@@ -271,11 +320,13 @@ function Base.:-(a::NodeID)::NodeID
             (g, ctx) -> Δ!(a, but(ctx, -ctx.outerd))
         ),
         [a],
+        S=size(a)
     ))
 end
 
 function Base.:/(a::NodeID, b::NodeID)::NodeID
     @assert(a.source == b.source)
+
     push!(a.source, ADNode(
         "./",
         Operation(
@@ -290,6 +341,7 @@ function Base.:/(a::NodeID, b::NodeID)::NodeID
             end
         ),
         [a, b],
+        S=elemop_size(a, b)
     ))
 end
 
@@ -300,10 +352,10 @@ function Base.:^(x::NodeID, n::Integer)::NodeID
             (x) -> elemop(^, x[1], n),
             function (g, ctx)
                 Δ!(x, but(ctx, ctx.outerd * elemmul(push!(g, n), x^(n - 1))))
-                #Δ!(x, ctx) * push!(g, n) * ctx.outerd * x^(n - 1)
             end
         ),
         [x],
+        S=size(x)
     ))
 end
 
@@ -317,6 +369,7 @@ function Base.:log(x::NodeID)::NodeID
             end
         ),
         [x],
+        S=size(x)
     ))
 end
 
@@ -334,8 +387,13 @@ function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
             end
         ),
         [x],
+        S=size
     ))
 end
+
+index_size(i::Vector) = (filter(x->x!==(), [index_size(i) for i in i])...,)
+index_size(::Int) = ()
+index_size(i::UnitRange{Int64}) = i.stop - i.start + 1
 
 function Base.:getindex(x::NodeID, i...)::NodeID
     push!(x.source, ADNode(
@@ -343,11 +401,22 @@ function Base.:getindex(x::NodeID, i...)::NodeID
         Operation(
             (x) -> getindex(x[1], i...),
             function (g, ctx)
-                Δ!(x, but(ctx, padded(ctx.outerd, size(val(x)), i)))
+                Δ!(x, but(ctx, padded(ctx.outerd, size(x), i)))
             end
         ),
         [x],
+        S=index_size([i...])
     ))
+end
+
+# TODO: make less stupid?
+# TODO: Check if a value is nothing during evaluation, and then ignore it
+function cat_size(sizes::Vector, dims)
+    if () in sizes
+        @warn("catting () sized object ignored")
+    end
+    sizes = filter(x->x!==(), sizes)
+    size(cat([zeros(s) for s in sizes]..., dims=dims))
 end
 
 function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
@@ -371,6 +440,7 @@ function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
             end
         ),
         [nodes...],
+        S=cat_size([size(n) for n in nodes], dims)
     ))
 end
 
@@ -378,21 +448,22 @@ end
 # Instead of computing exp(x - max), we compute exp2(x * log_2(e) -
 # max * log_2(e)) This allows the compiler to use the ffma
 # instruction instead of fadd and fmul separately.
-function softmax(x::MathObj)
+function softmax(x::MathObj; dims=nothing)
     sm = exp2.(x .* log2(ℯ) .- maximum(x) .* log2(ℯ))
-    return sm ./ sum(sm)
+    return sm ./ (dims===nothing ? sum(sm) : sum(sm, dims=dims))
 end
 
-function softmax(x::NodeID)::NodeID
+function softmax(x::NodeID; dims=nothing)::NodeID
     push!(x.source, ADNode(
         "softmax",
         Operation(
-            (x) -> softmax(x[1]),
+            (x) -> softmax(x[1], dims=dims),
             function (g, ctx)
-                Δ!(x, but(ctx, elemmul(elemmul(softmax(x), (push!(g, 1) - softmax(x))), ctx.outerd)))
+                Δ!(x, but(ctx, elemmul(elemmul(softmax(x, dims=dims), (push!(g, 1) - softmax(x, dims=dims))), ctx.outerd)))
             end
         ),
         [x],
+        S = size(x)
     ))
 end
 
@@ -449,9 +520,9 @@ function func(f::NodeID, params::NodeID...)::Function
     end
 end
 
-if ENV["TEST"]=="true"
-    using Pkg
-    Pkg.add("FiniteDiff")
+Base.:convert(::Type{T}, ::Nothing) where T <: Number = 0
+
+if get(ENV, "TEST", 0) == "true"
     using FiniteDiff
 
     function validate_func(f::NodeID, params::NodeID...)
@@ -468,19 +539,19 @@ if ENV["TEST"]=="true"
     ## Unit tests
     @testset "autodiff.jl" begin
         @testset "Basic scalar AD" begin
-            local g = ADGraph()
-            local a = push!(g, 3)
+            g = ADGraph()
+            a = push!(g, 3)
 
-            local b = push!(g, 4)
-            local c = a * b
+            b = push!(g, 4)
+            c = a * b
             @test(val(a) == 3)
             @test(val(c) == 3 * 4)
-            local db = Δ!(c, wrt(b))
+            db = Δ!(c, wrt(b))
             @test(val(db) == 3)
 
-            local d = push!(g, 5)
-            local e = c + d
-            local f = e * push!(g, 2)
+            d = push!(g, 5)
+            e = c + d
+            f = e * push!(g, 2)
 
             @test(val(Δ(f, d)) == 2)
             @test(val(Δ(f, c)) == 2)
@@ -488,21 +559,21 @@ if ENV["TEST"]=="true"
         end
 
         @testset "Basic matrix tests + (mby) CUDA" begin
-            local g = ADGraph()
+            g = ADGraph()
             #local a = transpose(push!(g, CuArray([1 2; 3 4; 5 6])))
             #local b = push!(g, transpose(CuArray([1 2 3 0; 4 5 6 0; 7 8 9 0])))
             #local d = push!(g, CUDA.ones(2, 4))
 
-            local a = transpose(push!(g, [1 2; 3 4; 5 6]))
-            local b = push!(g, transpose([1 2 3 0; 4 5 6 0; 7 8 9 0]))
-            local d = push!(g, ones(2, 4))
+            a = transpose(push!(g, [1 2; 3 4; 5 6]))
+            b = push!(g, transpose([1 2 3 0; 4 5 6 0; 7 8 9 0]))
+            d = push!(g, ones(2, 4))
 
-            local c = exp(d) + a * transpose(b)
-            local c = c * b + a
+            c = exp(d) + a * transpose(b)
+            c = c * b + a
 
-            local da = val(Δ(c, a))
-            local db = val(Δ(c, b))
-            local dd = val(Δ(c, d))
+            da = val(Δ(c, a))
+            db = val(Δ(c, b))
+            dd = val(Δ(c, d))
             #gn = length(g.nodes)
             #local bruh = c*b
             #@assert(gn == length(g.nodes), keys(g.cache))
@@ -515,35 +586,44 @@ if ENV["TEST"]=="true"
         end
 
         @testset "Softmax test" begin
-            local x = rand(1000)
-            local sm = exp.(x) / sum(exp.(x))
-            local dsm = sm .* (1 .- sm)
+            x = rand(1000)
+            sm = exp.(x) / sum(exp.(x))
+            dsm = sm .* (1 .- sm)
 
-            local g = ADGraph()
-            local x = push!(g, x)
+            g = ADGraph()
+            x = push!(g, x)
 
-            local sm2 = softmax(x)
-            local dsm2 = Δ(sm2, x)
+            sm2 = softmax(x)
+            dsm2 = Δ(sm2, x)
 
             @test(sm ≈ val(sm2))
             @test(dsm ≈ val(dsm2))
         end
 
         @testset "cat and slice test" begin
-            #local g = ADGraph()
-            #local a = rand(g, (3, 4))
-            #local b = rand(g, (3, 4))
+            g = ADGraph()
+            a = push!(g, randn(3, 4))
+            b = push!(g, randn(3, 4))
 
-            #local c = cat(a, elemmul(b, a), dims=2)
-            #local d = c[1:3, 3:5]
+            c = cat(a, elemmul(b, a), dims=2)
+            d = c[1:3, 3:5]
 
-            #local db = Δ(c, b)
-            #local da = Δ(d, a)
-
-            #@test(val(db) == val(a))
-            ##println(val(da, debug=true))
-            #e = cat(a, push!(g, nothing), dims=1)
-            #@test val(e) == val(a)
+            validate_func(d, a, b, c)
+            validate_func(c, a, b)
         end
+    end
+
+    @testset "sum" begin
+        g = ADGraph()
+        a = push!(g, randn(3, 4, 5))
+        c = sum(a)
+        d = sum(a, dims=1)
+        e = sum(a, dims=2)
+        f = sum(a, dims=(1,2))
+
+        validate_func(c, a)
+        validate_func(d, a)
+        validate_func(e, a)
+        validate_func(f, a)
     end
 end
