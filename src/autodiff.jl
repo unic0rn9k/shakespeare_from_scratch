@@ -101,7 +101,7 @@ function as_node(value)::ADNode
         value
     else
         ADNode(
-            "const $value",
+            "???",
             Operation(
                 function (_)
                     value
@@ -211,7 +211,7 @@ function elemop_size(a::NodeID, b::NodeID)::Tuple
     try
         elemop_size_(size(a),size(b))
     catch
-        @error("Dimension mismatch. size($a) != size($b)")
+        throw("Dimension mismatch. size($a) != size($b)")
     end
 end
 
