@@ -496,7 +496,7 @@ end
 function query_node(g::ADGraph, name::String)::Vector{NodeID}
     ret = []
     for (i, node) in enumerate(g.nodes)
-        if node.name == name
+        if occursin(name, node.name)
             push!(ret, NodeID(i, g))
         end
     end

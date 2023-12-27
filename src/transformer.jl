@@ -81,9 +81,11 @@ rename!(y, "Y")
 bruh = decoder_block(x, 5)
 loss = mse_loss(y, bruh)
 
-opt = Adam(0.01, query_node(g, "param"), loss)
+params = query_node(g, "param")
+@show params
+opt = Adam(0.01, params, loss)
 
-for iter in 0:1000
+for iter in 0:100
     @show iter
 
     (a,b) = get_sequence()
