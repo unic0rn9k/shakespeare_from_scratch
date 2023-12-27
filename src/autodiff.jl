@@ -138,7 +138,7 @@ function Base.:push!(g::ADGraph, node)::NodeID
 end
 
 function set!(node::NodeID, value)
-    @assert size(value) == size(node)
+    @assert(size(value) == size(node), "Cannot write value of new shape to node.\nSetting size of $node\nwith size $(size(node))\nto $(size(value))")
     node.source.nodes[node.id] = as_node(value)
 end
 
@@ -493,13 +493,14 @@ function Base.:show(io::IO, node::NodeID)
     end
 end
 
-function query_node(g::ADGraph, name::String)::NodeID
+function query_node(g::ADGraph, name::String)::Vector{NodeID}
+    ret = []
     for (i, node) in enumerate(g.nodes)
         if node.name == name
-            return NodeID(i, g)
+            push!(ret, NodeID(i, g))
         end
     end
-    throw("Node not found")
+    ret
 end
 
 function Δ(f, wrt; cuda=false)

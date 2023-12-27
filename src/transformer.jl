@@ -1,6 +1,8 @@
 function linear(input::NodeID, output_size::Int; bias::Bool=true)
     W = push!(input.source, rand(size(input)[end], output_size))
     b = push!(input.source, rand(1, output_size))
+    rename!(W, "some weight param")
+    rename!(b, "some bias param")
     bias ? input*W+b : input*W
 end
 
@@ -47,14 +49,20 @@ alphabet_size = length(alphabet)
 char_to_idx = Dict(ch => i for (i, ch) in enumerate(alphabet))
 idx_to_char = Dict(i => ch for (i, ch) in enumerate(alphabet))
 
+seq_len = 100;
+
 data = [char_to_idx[ch] for ch in data]
 
-function get_sequence(seq_len::Int)::Tuple{Matrix{Float64},Matrix{Float64}}
-    x = zeros(seq_len, alphabet_size)
-    y = zeros(seq_len, alphabet_size)
+function tokenize(x::Vector{Int})::Matrix{Float32}
+    [i == j ? 1 : 0 for i in x, j in 1:alphabet_size]
+end
 
-
-    (x, y)
+function get_sequence()::Tuple{Matrix{Float64},Matrix{Float64}}
+    n = rand(1:length(data)-seq_len-1)
+    x = data[n:n+seq_len-1]
+    y = data[n+1:n+seq_len]
+    
+    tokenize.(collect.((x, y)))
 end
 
 function decoder_block(input::NodeID, nheads::Int; headd::Int=20, outd::Int=alphabet_size)
@@ -65,5 +73,25 @@ function decoder_block(input::NodeID, nheads::Int; headd::Int=20, outd::Int=alph
 end
 
 g = ADGraph()
-seq = push!(g, zeros(100, alphabet_size))
-bruh = decoder_block(seq, 5)
+x = push!(g, zeros(seq_len, alphabet_size))
+y = push!(g, zeros(seq_len, alphabet_size))
+rename!(x, "X")
+rename!(y, "Y")
+
+bruh = decoder_block(x, 5)
+loss = mse_loss(y, bruh)
+
+opt = Adam(0.01, query_node(g, "param"), loss)
+
+for iter in 0:100
+    @show iter
+
+    (a,b) = get_sequence()
+    set!(x, a)
+    set!(y, b)
+    optimize!(opt)
+
+    @show val(loss)
+end
+
+@show size(val(bruh))
