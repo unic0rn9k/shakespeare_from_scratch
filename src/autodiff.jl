@@ -201,7 +201,11 @@ function Base.:sum(x::NodeID; dims=nothing)::NodeID
 end
 
 function elemop_size_(a::Tuple, b::Tuple)
-    @assert(a == b)
+    for (ax, bx) in zip(a, b)
+        if ax != 1 && bx != 1
+            @assert(ax == bx, "$a !. $b")
+        end
+    end
     a
 end
 elemop_size_(a::Tuple, ::Tuple{}) = a
@@ -209,7 +213,7 @@ elemop_size_(::Tuple{}, a::Tuple) = a
 elemop_size_(::Tuple{}, ::Tuple{}) = ()
 function elemop_size(a::NodeID, b::NodeID)::Tuple
     try
-        elemop_size_(size(a),size(b))
+        elemop_size_(size(a), size(b))
     catch
         throw("Dimension mismatch. size($a) != size($b)")
     end
@@ -240,7 +244,7 @@ function mul_size(a::NodeID, b::NodeID)::Tuple
     try
         mul_size_(size(a),size(b))
     catch
-        @error("Dimension mismatch. size($a) mm size($b)")
+        throw("Dimension mismatch. size($a) mm size($b)")
     end
 end
 
@@ -383,7 +387,7 @@ function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
                 return ret
             end,
             function (g, ctx)
-                @error("Padding derivative not implemented")
+                throw("Padding derivative not implemented")
             end
         ),
         [x],
@@ -522,7 +526,7 @@ end
 
 Base.:convert(::Type{T}, ::Nothing) where T <: Number = 0
 
-if get(ENV, "TEST", 0) == "true"
+@static if get(ENV, "TEST", 0) == "true"
     using FiniteDiff
 
     function validate_func(f::NodeID, params::NodeID...)
@@ -544,18 +548,18 @@ if get(ENV, "TEST", 0) == "true"
 
             b = push!(g, 4)
             c = a * b
-            @test(val(a) == 3)
-            @test(val(c) == 3 * 4)
+            @test val(a) == 3
+            @test val(c) == 3 * 4
             db = Δ!(c, wrt(b))
-            @test(val(db) == 3)
+            @test val(db) == 3
 
             d = push!(g, 5)
             e = c + d
             f = e * push!(g, 2)
 
-            @test(val(Δ(f, d)) == 2)
-            @test(val(Δ(f, c)) == 2)
-            @test(val(Δ(f, b)) == 6)
+            @test val(Δ(f, d)) == 2
+            @test val(Δ(f, c)) == 2
+            @test val(Δ(f, b)) == 6
         end
 
         @testset "Basic matrix tests + (mby) CUDA" begin
@@ -578,9 +582,9 @@ if get(ENV, "TEST", 0) == "true"
             #local bruh = c*b
             #@assert(gn == length(g.nodes), keys(g.cache))
 
-            @test(size(da) == size(val(a)))
-            @test(size(db) == size(val(b)))
-            @test(size(dd) == size(val(d)))
+            @test size(da) == size(val(a))
+            @test size(db) == size(val(b))
+            @test size(dd) == size(val(d))
 
             validate_func(c, a, b, d)
         end
@@ -596,8 +600,8 @@ if get(ENV, "TEST", 0) == "true"
             sm2 = softmax(x)
             dsm2 = Δ(sm2, x)
 
-            @test(sm ≈ val(sm2))
-            @test(dsm ≈ val(dsm2))
+            @test sm ≈ val(sm2)
+            @test dsm ≈ val(dsm2)
         end
 
         @testset "cat and slice test" begin

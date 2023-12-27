@@ -9,8 +9,8 @@ function classifier()
     w = push!(g, randn(28 * 28, 10))
     b = push!(g, randn(1, 10))
 
-    x = push!(g, nothing)
-    y = push!(g, nothing)
+    x = push!(g, zeros(1, 28*28))
+    y = push!(g, zeros(1, 10))
     ŷ = softmax(x * w + b)
 
     input!(i) = set!(x, reshape(mnist.features[:, :, i], 1, 28 * 28))
@@ -25,7 +25,7 @@ function classifier()
 
     loss = sum((ŷ - y)^2)
     nval   = 1000
-    ntrain = 40000
+    ntrain = 10000
 
     @show Δ(loss, w)
 
@@ -54,7 +54,11 @@ function classifier()
         end
     end
 
-    println("After training:  $(100*model_accuracy())%")
+    acc = 100*model_accuracy()
+    println("After training:  $(acc)%")
+    @static if get(ENV, "TEST", 0) == "true"
+        @test acc > 80
+    end
 
     return g, x, ŷ
 end
