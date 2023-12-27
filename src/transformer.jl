@@ -83,7 +83,7 @@ loss = mse_loss(y, bruh)
 
 opt = Adam(0.01, query_node(g, "param"), loss)
 
-for iter in 0:100
+for iter in 0:1000
     @show iter
 
     (a,b) = get_sequence()

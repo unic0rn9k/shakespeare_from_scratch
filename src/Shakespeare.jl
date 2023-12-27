@@ -3,7 +3,7 @@ module Shakespeare
 
     @static if get(ENV, "INSTALL", 0) == "true"
         using Pkg
-        Pkg.add(["FiniteDiff", "Pickle", "Plots", "MLDatasets"])
+        Pkg.add(["FiniteDiff", "Pickle", "Plots"])
     end
 
     include("autodiff.jl")

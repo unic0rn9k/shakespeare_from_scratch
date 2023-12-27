@@ -81,5 +81,3 @@ for (name, f) in models
         @test model.drift[end] < 0.1
     end
 end
-
-include("mnist.jl")
