@@ -1,9 +1,3 @@
-## AD from scratch
-# - Caching
-# - Pruning
-# - Generic type for NodeID
-# - Transformers
-
 MathObj = Union{AbstractArray,Number,Nothing}
 
 begin
@@ -22,6 +16,7 @@ begin
     Base.:/(::Nothing, ::Nothing) = nothing
     Base.:/(l::MathObj, ::Nothing) = l
     Base.:/(::Nothing, r::MathObj) = 1 / r
+    Base.:^(::Nothing, ::Int64) = nothing
 
     elemop(f::Function, l::MathObj, r::MathObj)::MathObj = f.(l, r)
     elemop(f::Function, l::MathObj, r::Nothing)::MathObj = f(l, r)
@@ -38,9 +33,9 @@ NodeHash = Tuple{String,Vector{UInt}}
 
 abstract type Graph end
 
-struct NodeID
-    id::UInt
-    source::Graph
+struct NodeID{G<:Graph}
+    id::Int
+    source::G
 end
 
 mutable struct ADNode
@@ -52,16 +47,28 @@ mutable struct ADNode
         new(a,b,c,S)
     end
 end
+nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
+
+struct NilGraph <: Graph end
+Base.:convert(::Type{T}, ::Nothing) where T<:NodeID = NodeID(1, NilGraph())
+Base.:push!(::NilGraph, ::ADNode)::NodeID = nothing
+
+function select_graph(graphs::Graph...)::Graph
+    graphs = filter(x->typeof(x) != NilGraph, [graphs...])
+    if length(graphs) != 0
+        @assert all(x->x==graphs[1], graphs)
+        graphs[1]
+    else NilGraph() end
+end
 
 Base.:size(node::ADNode) = node.shape
 Base.:size(node::NodeID) = size(node.source.nodes[node.id])
-
-nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
+Base.:size(::NodeID{NilGraph}) = ()
 
 mutable struct ADGraph <: Graph
     nodes::Vector{ADNode}
     cache::Dict{Tuple{String,Vector{UInt}},UInt}
-    ADGraph() = new([], Dict())
+    ADGraph() = new([as_node(nothing)], Dict())
     #blibblob::Bool # cache validation blibblob
     # when graph is mutated -> blibblob ≠ blibblob
     # val(graph, node) -> if graph.blibblob = node.blibblob ; return node.cache ;
@@ -70,6 +77,7 @@ end
 
 function val(node_::NodeID; debug::Bool=false)::MathObj
     g = node_.source
+    if typeof(g)<:NilGraph; return nothing; end
     node = g.nodes[node_.id]
     args = [val(i, debug=debug) for i in node.inputs]
     v = try
@@ -169,6 +177,7 @@ function Δ!(node::NodeID, ctx::DiffCtx)::NodeID
         g.nodes[node.id].op.backwards(g, ctx)
     end
 end
+Δ!(n::NodeID{NilGraph}, ::DiffCtx) = n
 
 Base.:transpose(x::Tuple{Int, Int}) = (x[2], x[1])
 Base.:transpose(::Tuple{}) = ()
@@ -219,10 +228,8 @@ function elemop_size(a::NodeID, b::NodeID)::Tuple
     end
 end
 
-function Base.:+(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-
-    push!(a.source, ADNode(
+function Base.:+(a::NodeID, b::NodeID)::NodeID 
+    push!(select_graph(a.source, b.source), ADNode(
         "+",
         Operation(
             x -> elemop(+, x[1], x[2]),
@@ -249,8 +256,7 @@ function mul_size(a::NodeID, b::NodeID)::Tuple
 end
 
 function Base.:*(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-    push!(a.source, ADNode(
+    push!(select_graph(a.source, b.source), ADNode(
         "*",
         Operation(
             prod,
@@ -269,9 +275,7 @@ function Base.:*(a::NodeID, b::NodeID)::NodeID
 end
 
 function elemmul(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-
-    push!(a.source, ADNode(
+    push!(select_graph(a.source, b.source), ADNode(
         ".*",
         Operation(
             x -> elemop(*, x[1], x[2]),
@@ -301,9 +305,7 @@ function Base.:exp(x::NodeID)::NodeID
 end
 
 function Base.:-(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-
-    push!(a.source, ADNode(
+    push!(select_graph(a.source, b.source), ADNode(
         "-",
         Operation(
             (x) -> elemop(-, x[1], x[2]),
@@ -329,9 +331,7 @@ function Base.:-(a::NodeID)::NodeID
 end
 
 function Base.:/(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-
-    push!(a.source, ADNode(
+    push!(select_graph(a.source, b.source), ADNode(
         "./",
         Operation(
             x -> elemop(/, x[1], x[2]),
@@ -419,11 +419,19 @@ function cat_size(sizes::Vector, dims)
     if () in sizes
         @warn("catting () sized object ignored")
     end
-    sizes = filter(x->x!==(), sizes)
-    size(cat([zeros(s) for s in sizes]..., dims=dims))
+    sizes = 
+    try size(cat([zeros(s) for s in sizes]..., dims=dims))
+    catch e
+        @error(sizes)
+        rethrow(e)
+    end
 end
 
 function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
+    sizes = filter(x->x!==(), [size(n) for n in nodes])
+    if length(sizes) == 0
+        return nothing
+    end
     push!(nodes[1].source, ADNode(
         "cat dims=$dims",
         Operation(
@@ -444,7 +452,7 @@ function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
             end
         ),
         [nodes...],
-        S=cat_size([size(n) for n in nodes], dims)
+        S=cat_size(sizes, dims)
     ))
 end
 
