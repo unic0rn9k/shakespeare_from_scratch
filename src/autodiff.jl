@@ -89,7 +89,7 @@ function val(node_::NodeID; debug::Bool=false)::MathObj
     if debug
         @info("[$(node_.id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(v))")
     end
-    @assert(size(node) == size(v), "Unexpected shape of computed value.\n... node: $node_\n... expected: $(size(node))\n... found: $(size(v))")
+    @assert(size(node) == size(v), "Unexpected shape of computed value.\n... node: $node_\n... expected: $(size(node))\n... found: $(sizUniversale(v))")
     v
 end
 
@@ -210,11 +210,7 @@ function Base.:sum(x::NodeID; dims=nothing)::NodeID
 end
 
 function elemop_size_(a::Tuple, b::Tuple)
-    for (ax, bx) in zip(a, b)
-        if ax != 1 && bx != 1
-            @assert(ax == bx, "$a !. $b")
-        end
-    end
+    @assert(a == b, "Dimension mismatch. $a != $b")
     a
 end
 elemop_size_(a::Tuple, ::Tuple{}) = a

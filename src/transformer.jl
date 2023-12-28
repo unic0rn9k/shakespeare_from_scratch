@@ -1,6 +1,6 @@
 function linear(input::NodeID, output_size::Int; bias::Bool=true)
     W = push!(input.source, rand(size(input)[end], output_size))
-    b = push!(input.source, rand(1, output_size))
+    b = push!(input.source, rand(size(input)[1], output_size))
     rename!(W, "some weight param")
     rename!(b, "some bias param")
     bias ? input*W+b : input*W
