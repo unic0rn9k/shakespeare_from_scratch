@@ -57,14 +57,6 @@ function tokenize(x::Vector{Int})::Matrix{Float32}
     [i == j ? 1 : 0 for i in x, j in 1:alphabet_size]
 end
 
-function get_sequence()::Tuple{Matrix{Float64},Matrix{Float64}}
-    n = rand(1:length(data)-seq_len-1)
-    x = data[n:n+seq_len-1]
-    y = data[n+1:n+seq_len]
-    
-    tokenize.(collect.((x, y)))
-end
-
 function decoder_block(input::NodeID, nheads::Int; headd::Int=20, outd::Int=alphabet_size)
     heads = [attn(input, input, input, headd, true) for _ in 0:nheads]
     c = cat(heads..., dims=2)
@@ -78,22 +70,37 @@ y = push!(g, zeros(seq_len, alphabet_size))
 rename!(x, "X")
 rename!(y, "Y")
 
+function get_sequence()
+    n = rand(1:length(data)-seq_len-1)
+    a = data[n:n+seq_len-1]
+    b = data[n+1:n+seq_len]
+    
+    (a, b) = tokenize.(collect.((a, b)))
+    set!(x, a); set!(y, b)
+end
+get_sequence()
+
 bruh = decoder_block(x, 5)
 loss = mse_loss(y, bruh)
+opt = Adam(0.01, query_node(g, "param"), loss)
 
-params = query_node(g, "param")
-@show params
-opt = Adam(0.01, params, loss)
+first_loss = val(loss)
 
-for iter in 0:100
+for iter in 0:5
     @show iter
 
-    (a,b) = get_sequence()
-    set!(x, a)
-    set!(y, b)
+    get_sequence()
     optimize!(opt)
 
     @show val(loss)
 end
 
-@show size(val(bruh))
+last_loss = val(loss)
+
+function Base.:string(tokens::Matrix)::String
+    @assert size(tokens) == (seq_len, alphabet_size)
+    string([idx_to_char[n] for n in argmax.([tokens[n,:] for n in 1:seq_len])]...)
+end
+
+@show string(val(bruh))
+@test first_loss > last_loss
