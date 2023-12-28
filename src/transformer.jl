@@ -40,7 +40,7 @@ end
 ## Train single attention head on tiny-shakespeare, with cross_entropy loss and Adam optimizer
 # 1. Load data
 
-data = open("tiny-shakespeare.txt") do f
+data = open("../tiny-shakespeare.txt") do f
     read(f, String)
 end
 
