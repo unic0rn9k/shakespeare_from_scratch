@@ -1,70 +1,22 @@
-# Shakespeare From Scratch (WIP)
-A transformer implementation, in Julia only depending on the standart library.
-Also has optional support for GPU, which depends on the CUDA package.
+<center><h1>Shakespeare From Scratch</h1></center>
 
-## Example mnist classifier
+Training a transformer-decoder network, to produce shakespear-esque text, only using the Julia standard library (plus some extra packages for testing, which are only enabled in the CI run, and for GPU support).
+I obtained my training data from [karpathy/char-rnn](https://github.com/karpathy/char-rnn/blob/master/data/tinyshakespeare/input.txt), who originally compiled the dataset.
 
-An mnist classifier, using [`src/autodiff.jl`](autodiff.jl), to work as a proof-of-concept.
-```julia
-using MLDatasets
+## Architecture
+The `src` directory, in the project root, contains 4 files, which represent the different layers of abstraction.
+- [autodiff.jl](src/autodiff.jl), which implements a generic way to differentiate a function (represented as a graph of operations on "tensor" objects) with a single scalar output (if function has multiple outputs, there is an implicit sum operation at the end), with respect to any number of variables. This is implemented with reverse-mode auto-differentiation.
+- [optimizer.jl](src/optimizer.jl), which contains various implementations of optimizations algorithms and loss functions. (Stochastic gradient decent, Adam optimization, mean square error loss and cross entropy loss)
+- [transformer.jl](src/transformer.jl), implements self-attention, a decoder block, and a training loop for a generative language model, that consumes the [tiny-shakespeare.txt](tiny-shakespeare.txt) dataset.
+- [Shakespeare.jl](src/Shakespeare.jl), just loads the files above, and exports high-level functions and type-definitions, and depending on flags set in the environment, it will install packages for testing all the moving parts.
 
-include("autodiff.jl")
-include("optimizer.jl")
-include("loss.jl")
+For a simple example of the API of `autodiff.jl`, view [mnist.jl](test/mnist.jl).
 
-mnist = MNIST()
-
-g = ADGraph()
-w = rand(g, (28 * 28, 10))
-b = rand(g, (1, 10))
-
-x = push!(g, reshape(mnist.features[:, :, 1], 1, 28 * 28))
-y = push!(g, one_hot((1, mnist.targets[1]), (1, 10)))
-
-ŷ = softmax(x * w + b)
-
-loss = cross_entropy(y, ŷ)
-optimizer = Adam(0.001, [w, b], loss)
-
-nval   = 10000
-ntrain = 20000
-
-model_accuracy = () -> begin
-    correct = 0
-    for _ in 1:nval
-        i = rand(55001:60000)
-        set!(x, reshape(mnist.features[:, :, i], 1, 28 * 28))
-        set!(y, one_hot((1, mnist.targets[i]), (1, 10)))
-        correct += argmax(val(ŷ)) == argmax(val(y))
-    end
-    return correct / nval
-end
-
-println("Before training: $(100*model_accuracy())%\n")
-
-for i in 0:ntrain
-    optimize!(optimizer)
-    n = rand(1:55000)
-    set!(x, reshape(mnist.features[:, :, n], 1, 28 * 28))
-    set!(y, one_hot((1, mnist.targets[n]), (1, 10)))
-    println("\u1b[1F$(floor(Int, i*100/ntrain))%")
-end
-
-println("After training:  $(100*model_accuracy())%")
-```
-
-Outputs:
-
-```txt
-# Before training: 10.26%
-# 100%
-# After training:  74.85000000000001%
-```
-# Development - validation and testing
-## Validating against numerically differentiated expressions
+## Development - validation and testing of `autodiff.jl`
+### Validating against numerically differentiated expressions
 `src/autodiff.jl` has unit test in [the bottom of the file](https://github.com/unic0rn9k/shakespeare_from_scratch/blob/bd5c2a14ae783762a626c398ab5e62dde74e4fa8/src/autodiff.jl#L525), defining expressions to validate against numerical derivatives calculated with [FiniteDiff.jl](https://github.com/JuliaDiff/FiniteDiff.jl).
 
-## One to one comparison with PyTorch
+### One to one comparison with PyTorch
 Optimizing a parameter in a linear projection (matmul), fed into a softmax function, and testing against values, and initial states, generated with PyTorch (see [linear_softmax.py](test/py/linear_softmax.py)).
 
 ![](test/compare_plots/linear_softmax.png)

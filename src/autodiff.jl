@@ -1,9 +1,3 @@
-## AD from scratch
-# - Caching
-# - Pruning
-# - Generic type for NodeID
-# - Transformers
-
 MathObj = Union{AbstractArray,Number,Nothing}
 
 begin
@@ -22,6 +16,7 @@ begin
     Base.:/(::Nothing, ::Nothing) = nothing
     Base.:/(l::MathObj, ::Nothing) = l
     Base.:/(::Nothing, r::MathObj) = 1 / r
+    Base.:^(::Nothing, ::Int64) = nothing
 
     elemop(f::Function, l::MathObj, r::MathObj)::MathObj = f.(l, r)
     elemop(f::Function, l::MathObj, r::Nothing)::MathObj = f(l, r)
@@ -38,9 +33,9 @@ NodeHash = Tuple{String,Vector{UInt}}
 
 abstract type Graph end
 
-struct NodeID
-    id::UInt
-    source::Graph
+struct NodeID{G<:Graph}
+    id::Int
+    source::G
 end
 
 mutable struct ADNode
@@ -52,16 +47,28 @@ mutable struct ADNode
         new(a,b,c,S)
     end
 end
+nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
+
+struct NilGraph <: Graph end
+Base.:convert(::Type{T}, ::Nothing) where T<:NodeID = NodeID(1, NilGraph())
+Base.:push!(::NilGraph, ::ADNode)::NodeID = nothing
+
+function select_graph(graphs::Graph...)::Graph
+    graphs = filter(x->typeof(x) != NilGraph, [graphs...])
+    if length(graphs) != 0
+        @assert all(x->x==graphs[1], graphs)
+        graphs[1]
+    else NilGraph() end
+end
 
 Base.:size(node::ADNode) = node.shape
 Base.:size(node::NodeID) = size(node.source.nodes[node.id])
-
-nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
+Base.:size(::NodeID{NilGraph}) = ()
 
 mutable struct ADGraph <: Graph
     nodes::Vector{ADNode}
     cache::Dict{Tuple{String,Vector{UInt}},UInt}
-    ADGraph() = new([], Dict())
+    ADGraph() = new([as_node(nothing)], Dict())
     #blibblob::Bool # cache validation blibblob
     # when graph is mutated -> blibblob ≠ blibblob
     # val(graph, node) -> if graph.blibblob = node.blibblob ; return node.cache ;
@@ -70,6 +77,7 @@ end
 
 function val(node_::NodeID; debug::Bool=false)::MathObj
     g = node_.source
+    if typeof(g)<:NilGraph; return nothing; end
     node = g.nodes[node_.id]
     args = [val(i, debug=debug) for i in node.inputs]
     v = try
@@ -81,7 +89,7 @@ function val(node_::NodeID; debug::Bool=false)::MathObj
     if debug
         @info("[$(node_.id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(v))")
     end
-    @assert(size(node) == size(v), "Unexpected shape of computed value.\n... node: $node_\n... expected: $(size(node))\n... found: $(size(v))")
+    @assert(size(node) == size(v), "Unexpected shape of computed value.\n... node: $node_\n... expected: $(size(node))\n... found: $(sizUniversale(v))")
     v
 end
 
@@ -101,7 +109,7 @@ function as_node(value)::ADNode
         value
     else
         ADNode(
-            "const $value",
+            "???",
             Operation(
                 function (_)
                     value
@@ -138,7 +146,7 @@ function Base.:push!(g::ADGraph, node)::NodeID
 end
 
 function set!(node::NodeID, value)
-    @assert size(value) == size(node)
+    @assert(size(value) == size(node), "Cannot write value of new shape to node.\nSetting size of $node\nwith size $(size(node))\nto $(size(value))")
     node.source.nodes[node.id] = as_node(value)
 end
 
@@ -169,6 +177,7 @@ function Δ!(node::NodeID, ctx::DiffCtx)::NodeID
         g.nodes[node.id].op.backwards(g, ctx)
     end
 end
+Δ!(n::NodeID{NilGraph}, ::DiffCtx) = n
 
 Base.:transpose(x::Tuple{Int, Int}) = (x[2], x[1])
 Base.:transpose(::Tuple{}) = ()
@@ -201,7 +210,7 @@ function Base.:sum(x::NodeID; dims=nothing)::NodeID
 end
 
 function elemop_size_(a::Tuple, b::Tuple)
-    @assert(a == b)
+    @assert(a == b, "Dimension mismatch. $a != $b")
     a
 end
 elemop_size_(a::Tuple, ::Tuple{}) = a
@@ -209,16 +218,14 @@ elemop_size_(::Tuple{}, a::Tuple) = a
 elemop_size_(::Tuple{}, ::Tuple{}) = ()
 function elemop_size(a::NodeID, b::NodeID)::Tuple
     try
-        elemop_size_(size(a),size(b))
+        elemop_size_(size(a), size(b))
     catch
-        @error("Dimension mismatch. size($a) != size($b)")
+        throw("Dimension mismatch. size($a) != size($b)")
     end
 end
 
-function Base.:+(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-
-    push!(a.source, ADNode(
+function Base.:+(a::NodeID, b::NodeID)::NodeID 
+    push!(select_graph(a.source, b.source), ADNode(
         "+",
         Operation(
             x -> elemop(+, x[1], x[2]),
@@ -240,13 +247,12 @@ function mul_size(a::NodeID, b::NodeID)::Tuple
     try
         mul_size_(size(a),size(b))
     catch
-        @error("Dimension mismatch. size($a) mm size($b)")
+        throw("Dimension mismatch. size($a) mm size($b)")
     end
 end
 
 function Base.:*(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-    push!(a.source, ADNode(
+    push!(select_graph(a.source, b.source), ADNode(
         "*",
         Operation(
             prod,
@@ -265,9 +271,7 @@ function Base.:*(a::NodeID, b::NodeID)::NodeID
 end
 
 function elemmul(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-
-    push!(a.source, ADNode(
+    push!(select_graph(a.source, b.source), ADNode(
         ".*",
         Operation(
             x -> elemop(*, x[1], x[2]),
@@ -297,9 +301,7 @@ function Base.:exp(x::NodeID)::NodeID
 end
 
 function Base.:-(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-
-    push!(a.source, ADNode(
+    push!(select_graph(a.source, b.source), ADNode(
         "-",
         Operation(
             (x) -> elemop(-, x[1], x[2]),
@@ -325,9 +327,7 @@ function Base.:-(a::NodeID)::NodeID
 end
 
 function Base.:/(a::NodeID, b::NodeID)::NodeID
-    @assert(a.source == b.source)
-
-    push!(a.source, ADNode(
+    push!(select_graph(a.source, b.source), ADNode(
         "./",
         Operation(
             x -> elemop(/, x[1], x[2]),
@@ -383,7 +383,7 @@ function padded(x::NodeID, size::Tuple, pos::Tuple)::NodeID
                 return ret
             end,
             function (g, ctx)
-                @error("Padding derivative not implemented")
+                throw("Padding derivative not implemented")
             end
         ),
         [x],
@@ -415,11 +415,19 @@ function cat_size(sizes::Vector, dims)
     if () in sizes
         @warn("catting () sized object ignored")
     end
-    sizes = filter(x->x!==(), sizes)
-    size(cat([zeros(s) for s in sizes]..., dims=dims))
+    sizes = 
+    try size(cat([zeros(s) for s in sizes]..., dims=dims))
+    catch e
+        @error(sizes)
+        rethrow(e)
+    end
 end
 
 function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
+    sizes = filter(x->x!==(), [size(n) for n in nodes])
+    if length(sizes) == 0
+        return nothing
+    end
     push!(nodes[1].source, ADNode(
         "cat dims=$dims",
         Operation(
@@ -440,7 +448,7 @@ function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
             end
         ),
         [nodes...],
-        S=cat_size([size(n) for n in nodes], dims)
+        S=cat_size(sizes, dims)
     ))
 end
 
@@ -489,13 +497,14 @@ function Base.:show(io::IO, node::NodeID)
     end
 end
 
-function query_node(g::ADGraph, name::String)::NodeID
+function query_node(g::ADGraph, name::String)::Vector{NodeID}
+    ret = []
     for (i, node) in enumerate(g.nodes)
-        if node.name == name
-            return NodeID(i, g)
+        if occursin(name, node.name)
+            push!(ret, NodeID(i, g))
         end
     end
-    throw("Node not found")
+    ret
 end
 
 function Δ(f, wrt; cuda=false)
@@ -522,7 +531,7 @@ end
 
 Base.:convert(::Type{T}, ::Nothing) where T <: Number = 0
 
-if get(ENV, "TEST", 0) == "true"
+@static if get(ENV, "TEST", 0) == "true"
     using FiniteDiff
 
     function validate_func(f::NodeID, params::NodeID...)
@@ -544,18 +553,18 @@ if get(ENV, "TEST", 0) == "true"
 
             b = push!(g, 4)
             c = a * b
-            @test(val(a) == 3)
-            @test(val(c) == 3 * 4)
+            @test val(a) == 3
+            @test val(c) == 3 * 4
             db = Δ!(c, wrt(b))
-            @test(val(db) == 3)
+            @test val(db) == 3
 
             d = push!(g, 5)
             e = c + d
             f = e * push!(g, 2)
 
-            @test(val(Δ(f, d)) == 2)
-            @test(val(Δ(f, c)) == 2)
-            @test(val(Δ(f, b)) == 6)
+            @test val(Δ(f, d)) == 2
+            @test val(Δ(f, c)) == 2
+            @test val(Δ(f, b)) == 6
         end
 
         @testset "Basic matrix tests + (mby) CUDA" begin
@@ -578,9 +587,9 @@ if get(ENV, "TEST", 0) == "true"
             #local bruh = c*b
             #@assert(gn == length(g.nodes), keys(g.cache))
 
-            @test(size(da) == size(val(a)))
-            @test(size(db) == size(val(b)))
-            @test(size(dd) == size(val(d)))
+            @test size(da) == size(val(a))
+            @test size(db) == size(val(b))
+            @test size(dd) == size(val(d))
 
             validate_func(c, a, b, d)
         end
@@ -596,8 +605,8 @@ if get(ENV, "TEST", 0) == "true"
             sm2 = softmax(x)
             dsm2 = Δ(sm2, x)
 
-            @test(sm ≈ val(sm2))
-            @test(dsm ≈ val(dsm2))
+            @test sm ≈ val(sm2)
+            @test dsm ≈ val(dsm2)
         end
 
         @testset "cat and slice test" begin
