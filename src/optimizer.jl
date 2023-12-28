@@ -6,7 +6,7 @@ struct SGD <: Optimizer
     params::Array{NodeID} # Parameters to optimize
     loss::NodeID # Loss function to minimize
 
-    function SGD(lr::Real, params::Array{NodeID}, loss::NodeID)
+    function SGD(lr::Real, params::Vector{N}, loss::N) where N<:NodeID{ADGraph}
         return new(lr, params, loss)
     end
 end
@@ -28,7 +28,7 @@ mutable struct Adam <: Optimizer
     m::Array{Array{Float64}} # First moment
     v::Array{Array{Float64}} # Second moment
 
-    function Adam(lr::Real, params::Array{NodeID}, loss::NodeID; β1::Real=0.9, β2::Real=0.999, ϵ::Real=1e-8)
+    function Adam(lr::Real, params::Vector{N}, loss::N; β1::Real=0.9, β2::Real=0.999, ϵ::Real=1e-8) where N<:NodeID{ADGraph}
         t = 0
         m = [zeros(size(val(p))) for p in params]
         v = [zeros(size(val(p))) for p in params]
