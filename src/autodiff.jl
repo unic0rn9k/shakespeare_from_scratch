@@ -67,8 +67,12 @@ Base.:size(::NodeID{NilGraph}) = ()
 
 mutable struct ADGraph <: Graph
     nodes::Vector{ADNode}
-    cache::Dict{Tuple{String,Vector{UInt}},UInt}
-    ADGraph() = new([as_node(nothing)], Dict())
+    cache::Dict{Tuple{String,Vector{Int}},Int}
+    function ADGraph()
+        self = new([], Dict())
+        push!(self, nothing)
+        self
+    end
     #blibblob::Bool # cache validation blibblob
     # when graph is mutated -> blibblob ≠ blibblob
     # val(graph, node) -> if graph.blibblob = node.blibblob ; return node.cache ;
@@ -89,7 +93,7 @@ function val(node_::NodeID; debug::Bool=false)::MathObj
     if debug
         @info("[$(node_.id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(v))")
     end
-    @assert(size(node) == size(v), "Unexpected shape of computed value.\n... node: $node_\n... expected: $(size(node))\n... found: $(sizUniversale(v))")
+    @assert(size(node) == size(v), "Unexpected shape of computed value.\n... node: $node_\n... expected: $(size(node))\n... found: $(size(v))")
     v
 end
 
@@ -104,12 +108,12 @@ function Base.:(==)(::ADNode, ::ADNode)::Bool
     throw("Comparing ADNodes")
 end
 
-function as_node(value)::ADNode
+function as_node(value, g::ADGraph)::ADNode
     if typeof(value) <: ADNode
         value
     else
         ADNode(
-            "???",
+            "const $(length(g.nodes))",
             Operation(
                 function (_)
                     value
@@ -124,30 +128,24 @@ function as_node(value)::ADNode
     end
 end
 
-# TODO: Fix pruning 
-function Base.:push!(g::ADGraph, node)::NodeID
-    if typeof(node) == NodeID
+function Base.:push!(g::ADGraph, data)::NodeID
+    if typeof(data) == NodeID
         throw("Cannot push NodeID to Graph")
     end
-    data = try
-        as_node(node)
-    catch
-        rethrow(node)
+
+    node = as_node(data, g)
+    nh = nodehash(node)
+
+    if !haskey(g.cache, nh)
+        push!(g.nodes, node)
+        g.cache[nh] = length(g.nodes)
     end
-    nh = nodehash(data)
-    #if occursin("const", nh[1])
-    #    nh = ("const $(length(g.nodes)))", [])
-    #end
-    if !occursin("const", nh[1]) && haskey(g.cache, nh)
-        return NodeID(g.cache[nh], g)
-    end
-    push!(g.nodes, data)
-    NodeID(length(g.nodes), g)
+    NodeID(g.cache[nh], g)
 end
 
 function set!(node::NodeID, value)
     @assert(size(value) == size(node), "Cannot write value of new shape to node.\nSetting size of $node\nwith size $(size(node))\nto $(size(value))")
-    node.source.nodes[node.id] = as_node(value)
+    node.source.nodes[node.id] = as_node(value, node.source)
 end
 
 function rename!(node::NodeID, name::String)
@@ -578,14 +576,14 @@ Base.:convert(::Type{T}, ::Nothing) where T <: Number = 0
             d = push!(g, ones(2, 4))
 
             c = exp(d) + a * transpose(b)
-            c = c * b + a
+            e = c * b + a
 
-            da = val(Δ(c, a))
-            db = val(Δ(c, b))
-            dd = val(Δ(c, d))
-            #gn = length(g.nodes)
-            #local bruh = c*b
-            #@assert(gn == length(g.nodes), keys(g.cache))
+            da = val(Δ(e, a))
+            db = val(Δ(e, b))
+            dd = val(Δ(e, d))
+            gn = length(g.nodes)
+            local bruh = c*b
+            @assert(gn == length(g.nodes), keys(g.cache))
 
             @test size(da) == size(val(a))
             @test size(db) == size(val(b))
@@ -620,19 +618,19 @@ Base.:convert(::Type{T}, ::Nothing) where T <: Number = 0
             validate_func(d, a, b, c)
             validate_func(c, a, b)
         end
-    end
 
-    @testset "sum" begin
-        g = ADGraph()
-        a = push!(g, randn(3, 4, 5))
-        c = sum(a)
-        d = sum(a, dims=1)
-        e = sum(a, dims=2)
-        f = sum(a, dims=(1,2))
+        @testset "sum" begin
+            g = ADGraph()
+            a = push!(g, randn(3, 4, 5))
+            c = sum(a)
+            d = sum(a, dims=1)
+            e = sum(a, dims=2)
+            f = sum(a, dims=(1,2))
 
-        validate_func(c, a)
-        validate_func(d, a)
-        validate_func(e, a)
-        validate_func(f, a)
-    end
+            validate_func(c, a)
+            validate_func(d, a)
+            validate_func(e, a)
+            validate_func(f, a)
+        end
+    end 
 end
