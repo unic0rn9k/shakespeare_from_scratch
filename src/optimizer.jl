@@ -16,7 +16,7 @@ end
 
 function optimize!(optimizer::SGD)
     for p in optimizer.params
-        set!(p, val(p) .- optimizer.lr .* val(Δ(optimizer.loss, p)))
+        set!(p, val(p) .- optimizer.lr .* val(Δ(optimizer.loss, p)), ignore_mutation=true)
     end
 end
 
@@ -55,7 +55,7 @@ function optimize!(optimizer::Adam)
         if isinf.(oops) |> any
             @error "Inf encountered in Adam optimizer"
         end
-        set!(p, oops)
+        set!(p, oops, ignore_mutation=true)
     end
 end
 
