@@ -82,17 +82,20 @@ get_sequence()
 
 bruh = decoder_block(x, 5)
 loss = mse_loss(y, bruh)
-opt = Adam(0.01, query_node(g, "param"), loss)
+opt = Adam(0.01/5, query_node(g, "param"), loss)
 
 first_loss = val(loss)
 
-for iter in 0:5
-    @show iter
+for iter in 0:10
+    for batch in 0:5
+        @show iter, batch
 
-    get_sequence()
-    optimize!(opt)
+        get_sequence()
+        optimize(opt)
 
-    @show val(loss)
+        @show val(loss)
+    end
+    update!(opt)
 end
 
 last_loss = val(loss)

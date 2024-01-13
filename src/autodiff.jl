@@ -67,6 +67,7 @@ end
 Base.:size(node::ADNode) = node.shape
 Base.:size(node::NodeID) = size(node.source.nodes[node.id])
 Base.:size(::NodeID{NilGraph}) = ()
+Base.:size(::NotComputed) = Nothing
 
 mutable struct ADGraph <: Graph
     nodes::Vector{ADNode}
@@ -96,6 +97,7 @@ function resolve_mutations!(g::ADGraph; debug::Bool=false)
             if mask[j.id]
                 mask[i]=true
                 push!(side_effects, i)
+                break
             end
         end
     end
@@ -171,11 +173,9 @@ function Base.:push!(g::ADGraph, data)::NodeID
     NodeID(g.cache[nh], g)
 end
 
-function set!(node::NodeID, value; ignore_mutation::Bool=false)
+function set!(node::NodeID, value)
     @assert(size(value) == size(node), "Cannot write value of new shape to node.\nSetting size of $node\nwith size $(size(node))\nto $(size(value))")
-    if !ignore_mutation
-        push!(node.source.mutations, node.id)
-    end
+    push!(node.source.mutations, node.id)
     node.source.nodes[node.id] = as_node(value, node.source)
 end
 

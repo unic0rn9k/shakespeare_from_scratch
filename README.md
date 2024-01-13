@@ -3,6 +3,23 @@
 Training a transformer-decoder network, to produce shakespear-esque text, only using the Julia standard library (plus some extra packages for testing, which are only enabled in the CI run, and for GPU support).
 I obtained my training data from [karpathy/char-rnn](https://github.com/karpathy/char-rnn/blob/master/data/tinyshakespeare/input.txt), who originally compiled the dataset.
 
+## Running
+```text
+$ TEST=true julia ../src/Shakespeare.jl
+Test Summary: | Pass  Total   Time
+autodiff.jl   |  128    128  16.9s
+(iter, batch) = (0, 0)
+val(loss) = 0.735115561349956
+(iter, batch) = (0, 1)
+val(loss) = 0.7281441192247889
+...
+(iter, batch) = (5, 3)
+val(loss) = 0.29762981719879383
+(iter, batch) = (5, 4)
+val(loss) = 0.3021907214893002
+(iter, batch) = (5, 5)
+```
+
 ## Architecture
 The `src` directory, in the project root, contains 4 files, which represent the different layers of abstraction.
 - [autodiff.jl](src/autodiff.jl), which implements a generic way to differentiate a function (represented as a graph of operations on "tensor" objects) with a single scalar output (if function has multiple outputs, there is an implicit sum operation at the end), with respect to any number of variables. This is implemented with reverse-mode auto-differentiation.

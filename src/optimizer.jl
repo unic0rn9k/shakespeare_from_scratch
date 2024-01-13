@@ -15,8 +15,9 @@ struct SGD <: Optimizer
 end
 
 function optimize!(optimizer::SGD)
+    # Should be split into 2 loops for performance
     for p in optimizer.params
-        set!(p, val(p) .- optimizer.lr .* val(Δ(optimizer.loss, p)), ignore_mutation=true)
+        set!(p, val(p) .- optimizer.lr .* val(Δ(optimizer.loss, p)))
     end
 end
 
@@ -30,32 +31,45 @@ mutable struct Adam <: Optimizer
     t::Int # Current timestep
     m::Array{Array{Float64}} # First moment
     v::Array{Array{Float64}} # Second moment
+    δ::Array{MathObj}
 
     function Adam(lr::Real, params::Vector{N}, loss::N; β1::Real=0.9, β2::Real=0.999, ϵ::Real=1e-8) where N<:NodeID
         t = 0
-        m = [zeros(size(val(p))) for p in params]
-        v = [zeros(size(val(p))) for p in params]
-        return new(lr, params, loss, β1, β2, ϵ, t, m, v)
+        m = [zeros(size(p)) for p in params]
+        v = [zeros(size(p)) for p in params]
+        δ = [zeros(size(p)) for p in params]
+        return new(lr, params, loss, β1, β2, ϵ, t, m, v, δ)
     end
 end
 
-function optimize!(optimizer::Adam)
+function optimize(optimizer::Adam)
     optimizer.t += 1
-    for i in 1:length(optimizer.params)
-        p = optimizer.params[i]
+    for (i, p) in enumerate(optimizer.params)
         g = val(Δ(optimizer.loss, p))
         optimizer.m[i] = optimizer.β1 * optimizer.m[i] + (1 - optimizer.β1) * g
         optimizer.v[i] = optimizer.β2 * optimizer.v[i] + (1 - optimizer.β2) * g .^ 2
         m̂ = optimizer.m[i] / (1 - optimizer.β1^optimizer.t)
         v̂ = optimizer.v[i] / (1 - optimizer.β2^optimizer.t)
-        oops = val(p) .- m̂ .* optimizer.lr ./ (sqrt.(v̂) .+ optimizer.ϵ)
+        oops = m̂ .* optimizer.lr ./ (sqrt.(v̂) .+ optimizer.ϵ)
+
         if isnan.(oops) |> any
             @error "NaN encountered in Adam optimizer"
         end
         if isinf.(oops) |> any
             @error "Inf encountered in Adam optimizer"
         end
-        set!(p, oops, ignore_mutation=true)
+        optimizer.δ[i] += oops
     end
 end
 
+function update!(optimizer::Adam)
+    for (i, p) in enumerate(optimizer.params)
+        set!(p, val(p) .- optimizer.δ[i])
+        optimizer.δ[i] = zeros(size(p))
+    end
+end
+
+function optimize!(optimizer::Adam)
+    optimize(optimizer)
+    update!(optimizer)
+end
