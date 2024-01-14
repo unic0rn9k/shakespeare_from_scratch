@@ -53,7 +53,12 @@ end
 nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
 
 struct NilGraph <: Graph end
-Base.:convert(::Type{NodeID}, ::Nothing) = NodeID(1, NilGraph())
+function Base.:convert(::Type{NodeID}, ::Nothing)
+    #st = stacktrace()
+    #st = ["$t" for t in st]
+    #@debug "Allocated node $st"
+    NodeID(1, NilGraph())
+end
 Base.:push!(::NilGraph, ::ADNode)::NodeID = nothing
 
 function select_graph(graphs::Graph...)::Graph
@@ -80,7 +85,7 @@ mutable struct ADGraph <: Graph
     end
 end
 
-function resolve_mutations!(g::ADGraph; debug::Bool=false)
+function resolve_mutations!(g::ADGraph)
     if length(g.mutations) == 0
         return
     end
@@ -109,20 +114,17 @@ function resolve_mutations!(g::ADGraph; debug::Bool=false)
         node.output = try
             node.op.eval(args)
         catch e
-            @warn("[$(id)]\t $(node.name) : $([size(arg) for arg in args]) = $e")
+            #@debug("[$(id)]\t $(node.name) : $([size(arg) for arg in args]) = $e")
             throw(e)
         end
-        if debug
-            @info("[$(id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(node.output))")
-        end
+        #@debug("[$(id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(node.output))")
     end
 end
 
-function val(node::NodeID; debug::Bool=false)::MathObj
+function val(node::NodeID)::MathObj
     g = node.source
-    #@show g.mutations
     if typeof(g)<:NilGraph; return nothing; end
-    resolve_mutations!(g; debug=debug)
+    resolve_mutations!(g)
     g.nodes[node.id].output
 end
 
@@ -166,6 +168,9 @@ function Base.:push!(g::ADGraph, data)::NodeID
     nh = nodehash(node)
 
     if !haskey(g.cache, nh)
+        #st = stacktrace()
+        #st = ["$t" for t in st]
+        #@debug "Allocating node $st"
         push!(g.nodes, node)
         g.cache[nh] = length(g.nodes)
         push!(g.mutations, g.cache[nh])
@@ -173,6 +178,7 @@ function Base.:push!(g::ADGraph, data)::NodeID
     NodeID(g.cache[nh], g)
 end
 
+# TODO: set replaces the ad_node, which means new nodehash's depending on this node, will no longer be the same.
 function set!(node::NodeID, value)
     @assert(size(value) == size(node), "Cannot write value of new shape to node.\nSetting size of $node\nwith size $(size(node))\nto $(size(value))")
     push!(node.source.mutations, node.id)

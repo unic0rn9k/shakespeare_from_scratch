@@ -32,20 +32,22 @@ mutable struct Adam <: Optimizer
     m::Array{Array{Float64}} # First moment
     v::Array{Array{Float64}} # Second moment
     δ::Array{MathObj}
+    Δ::Array{NodeID}
 
     function Adam(lr::Real, params::Vector{N}, loss::N; β1::Real=0.9, β2::Real=0.999, ϵ::Real=1e-8) where N<:NodeID
         t = 0
         m = [zeros(size(p)) for p in params]
         v = [zeros(size(p)) for p in params]
         δ = [zeros(size(p)) for p in params]
-        return new(lr, params, loss, β1, β2, ϵ, t, m, v, δ)
+        deltas = [Δ(loss, p) for p in params]
+        return new(lr, params, loss, β1, β2, ϵ, t, m, v, δ, deltas)
     end
 end
 
 function optimize(optimizer::Adam)
     optimizer.t += 1
-    for (i, p) in enumerate(optimizer.params)
-        g = val(Δ(optimizer.loss, p))
+    for (i, _) in enumerate(optimizer.params)
+        g = val(optimizer.Δ[i])
         optimizer.m[i] = optimizer.β1 * optimizer.m[i] + (1 - optimizer.β1) * g
         optimizer.v[i] = optimizer.β2 * optimizer.v[i] + (1 - optimizer.β2) * g .^ 2
         m̂ = optimizer.m[i] / (1 - optimizer.β1^optimizer.t)
