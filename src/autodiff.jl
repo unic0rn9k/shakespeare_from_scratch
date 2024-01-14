@@ -1,4 +1,6 @@
-MathObj = Union{AbstractArray,Number,Nothing}
+struct NotComputed end
+
+MathObj = Union{AbstractArray,Number,Nothing,NotComputed}
 
 begin
     Base.:*(::MathObj, ::Nothing)::Nothing = nothing
@@ -42,15 +44,21 @@ mutable struct ADNode
     name::String
     op::Operation
     inputs::Vector{NodeID}
+    output::MathObj
     const shape::Tuple
     function ADNode(a,b,c; S::Tuple)
-        new(a,b,c,S)
+        new(a,b,c,NotComputed(),S)
     end
 end
 nodehash(n::ADNode)::Tuple{String,Vector{UInt}} = (n.name, [i.id for i in n.inputs])
 
 struct NilGraph <: Graph end
-Base.:convert(::Type{T}, ::Nothing) where T<:NodeID = NodeID(1, NilGraph())
+function Base.:convert(::Type{NodeID}, ::Nothing)
+    #st = stacktrace()
+    #st = ["$t" for t in st]
+    #@debug "Allocated node $st"
+    NodeID(1, NilGraph())
+end
 Base.:push!(::NilGraph, ::ADNode)::NodeID = nothing
 
 function select_graph(graphs::Graph...)::Graph
@@ -64,33 +72,60 @@ end
 Base.:size(node::ADNode) = node.shape
 Base.:size(node::NodeID) = size(node.source.nodes[node.id])
 Base.:size(::NodeID{NilGraph}) = ()
+Base.:size(::NotComputed) = Nothing
 
 mutable struct ADGraph <: Graph
     nodes::Vector{ADNode}
-    cache::Dict{Tuple{String,Vector{UInt}},UInt}
-    ADGraph() = new([as_node(nothing)], Dict())
-    #blibblob::Bool # cache validation blibblob
-    # when graph is mutated -> blibblob ≠ blibblob
-    # val(graph, node) -> if graph.blibblob = node.blibblob ; return node.cache ;
-    # else evaluation... ; node.blibblob = graph.blibblob end
+    cache::Dict{Tuple{String,Vector{Int}},Int}
+    mutations::Vector{Int}
+    function ADGraph()
+        self = new([], Dict(), [])
+        push!(self, nothing)
+        self
+    end
 end
 
-function val(node_::NodeID; debug::Bool=false)::MathObj
-    g = node_.source
+function resolve_mutations!(g::ADGraph)
+    if length(g.mutations) == 0
+        return
+    end
+
+    mask = [false for _ in g.nodes]
+    side_effects = Set(g.mutations)
+    g.mutations = []
+
+    for n in side_effects
+        mask[n] = true
+    end
+    for (i, n::ADNode) in enumerate(g.nodes)
+        for j in n.inputs
+            if mask[j.id]
+                mask[i]=true
+                push!(side_effects, i)
+                break
+            end
+        end
+    end
+
+    for id in sort([side_effects...])
+        node = g.nodes[id]
+        args = [g.nodes[i.id].output for i in node.inputs]
+
+        node.output = try
+            node.op.eval(args)
+        catch e
+            #@debug("[$(id)]\t $(node.name) : $([size(arg) for arg in args]) = $e")
+            throw(e)
+        end
+        #@debug("[$(id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(node.output))")
+    end
+end
+
+function val(node::NodeID)::MathObj
+    g = node.source
     if typeof(g)<:NilGraph; return nothing; end
-    node = g.nodes[node_.id]
-    args = [val(i, debug=debug) for i in node.inputs]
-    v = try
-        node.op.eval(args)
-    catch e
-        @warn("[$(node_.id)]\t $(node.name) : $([size(arg) for arg in args]) = $e")
-        rethrow(e)
-    end
-    if debug
-        @info("[$(node_.id)]\t $(node.name) : $([size(arg) for arg in args]) = $(size(v))")
-    end
-    @assert(size(node) == size(v), "Unexpected shape of computed value.\n... node: $node_\n... expected: $(size(node))\n... found: $(sizUniversale(v))")
-    v
+    resolve_mutations!(g)
+    g.nodes[node.id].output
 end
 
 struct DiffCtx
@@ -104,12 +139,12 @@ function Base.:(==)(::ADNode, ::ADNode)::Bool
     throw("Comparing ADNodes")
 end
 
-function as_node(value)::ADNode
+function as_node(value, g::ADGraph)::ADNode
     if typeof(value) <: ADNode
         value
     else
         ADNode(
-            "???",
+            "const $(length(g.nodes))",
             Operation(
                 function (_)
                     value
@@ -124,30 +159,30 @@ function as_node(value)::ADNode
     end
 end
 
-# TODO: Fix pruning 
-function Base.:push!(g::ADGraph, node)::NodeID
-    if typeof(node) == NodeID
+function Base.:push!(g::ADGraph, data)::NodeID
+    if typeof(data) == NodeID
         throw("Cannot push NodeID to Graph")
     end
-    data = try
-        as_node(node)
-    catch
-        rethrow(node)
+
+    node = as_node(data, g)
+    nh = nodehash(node)
+
+    if !haskey(g.cache, nh)
+        #st = stacktrace()
+        #st = ["$t" for t in st]
+        #@debug "Allocating node $st"
+        push!(g.nodes, node)
+        g.cache[nh] = length(g.nodes)
+        push!(g.mutations, g.cache[nh])
     end
-    nh = nodehash(data)
-    #if occursin("const", nh[1])
-    #    nh = ("const $(length(g.nodes)))", [])
-    #end
-    if !occursin("const", nh[1]) && haskey(g.cache, nh)
-        return NodeID(g.cache[nh], g)
-    end
-    push!(g.nodes, data)
-    NodeID(length(g.nodes), g)
+    NodeID(g.cache[nh], g)
 end
 
+# TODO: set replaces the ad_node, which means new nodehash's depending on this node, will no longer be the same.
 function set!(node::NodeID, value)
     @assert(size(value) == size(node), "Cannot write value of new shape to node.\nSetting size of $node\nwith size $(size(node))\nto $(size(value))")
-    node.source.nodes[node.id] = as_node(value)
+    push!(node.source.mutations, node.id)
+    node.source.nodes[node.id] = as_node(value, node.source)
 end
 
 function rename!(node::NodeID, name::String)
@@ -436,13 +471,13 @@ function Base.:cat(nodes::NodeID...; dims::Int)::NodeID
                 outerd::Vector{Any} = [nothing for _ in nodes]
                 i = 1
                 for (n, node) in enumerate(nodes)
-                    s = [1:n for n in size(val(node))]
+                    s = [1:n for n in size(node)]
                     j = s[dims].stop
                     s[dims] = (i):(j+i-1)
                     outerd[n] = ctx.outerd[s...]
                     i += j
                 end
-                s = [1:n for n in size(val(ctx.wrt))]
+                s = [1:n for n in size(ctx.wrt)]
                 n = length(s) + 1
                 sum(cat([Δ!(node, but(ctx, d)) for (node, d) in zip(nodes, outerd)]..., dims=n), dims=n)[s..., 1]
             end
@@ -478,12 +513,7 @@ end
 function Base.:show(io::IO, node::NodeID)
     inner = node.source.nodes[node.id]
     if occursin("const", inner.name)
-        v = val(node)
-        if v === nothing
-            print(io, 0)
-        else
-            print(io, inner.name)
-        end
+        print(io, inner.name)
     elseif inner.name in ["+", "-", "*", "/", ".*", "./"]
         print(io,
             "(", inner.inputs[1], " ", inner.name,
@@ -508,13 +538,12 @@ function query_node(g::ADGraph, name::String)::Vector{NodeID}
 end
 
 function Δ(f, wrt; cuda=false)
-    v = val(f)
-    od = if typeof(v) <: Number
+    od = if size(f) == ()
         1
     elseif cuda
-        os = CUDA.ones(size(v))
+        os = CUDA.ones(size(f))
     else
-        os = ones(size(v))
+        os = ones(size(f))
     end
     Δ!(f, DiffCtx(push!(f.source, od), wrt))
 end
@@ -578,14 +607,14 @@ Base.:convert(::Type{T}, ::Nothing) where T <: Number = 0
             d = push!(g, ones(2, 4))
 
             c = exp(d) + a * transpose(b)
-            c = c * b + a
+            e = c * b + a
 
-            da = val(Δ(c, a))
-            db = val(Δ(c, b))
-            dd = val(Δ(c, d))
-            #gn = length(g.nodes)
-            #local bruh = c*b
-            #@assert(gn == length(g.nodes), keys(g.cache))
+            da = val(Δ(e, a))
+            db = val(Δ(e, b))
+            dd = val(Δ(e, d))
+            gn = length(g.nodes)
+            local bruh = c*b
+            @assert(gn == length(g.nodes), keys(g.cache))
 
             @test size(da) == size(val(a))
             @test size(db) == size(val(b))
@@ -620,19 +649,19 @@ Base.:convert(::Type{T}, ::Nothing) where T <: Number = 0
             validate_func(d, a, b, c)
             validate_func(c, a, b)
         end
-    end
 
-    @testset "sum" begin
-        g = ADGraph()
-        a = push!(g, randn(3, 4, 5))
-        c = sum(a)
-        d = sum(a, dims=1)
-        e = sum(a, dims=2)
-        f = sum(a, dims=(1,2))
+        @testset "sum" begin
+            g = ADGraph()
+            a = push!(g, randn(3, 4, 5))
+            c = sum(a)
+            d = sum(a, dims=1)
+            e = sum(a, dims=2)
+            f = sum(a, dims=(1,2))
 
-        validate_func(c, a)
-        validate_func(d, a)
-        validate_func(e, a)
-        validate_func(f, a)
-    end
+            validate_func(c, a)
+            validate_func(d, a)
+            validate_func(e, a)
+            validate_func(f, a)
+        end
+    end 
 end
